@@ -1,0 +1,62 @@
+.\"
+.\"
+.\"   Authors:
+.\"    Jean-Jacques Sarton		<jj.sarton@t-onlime.de>	 
+.\"
+.\"   This software is Copyright 1996 by the above mentioned author(s), 
+.\"   All Rights Reserved.
+.\"
+.\"   The license which is distributed with this software in the file COPYRIGHT
+.\"   applies to this software.
+.\"
+.\"
+.\"
+.TH radvc 8 "25 Jan 2012" "v0.1" ""
+.SH NAME
+radvc \- complete / generate a resolv.conf file according to radvd information
+.SH SYNOPSIS
+.B radvc
+.B "[ \-f ] [ \v ]"
+
+.SH DESCRIPTION
+.B radvc
+complete / generate a resolv.conf file according to the information send by
+.B radvd
+(
+.B RDNSS
+and
+.B DNSSL
+).
+
+.B radvc
+will be helpfull for the case that the system is only configured via radvd
+or if the wanted values are not set by the dhcp client programm.
+
+.SH OPTIONS
+ 
+.TP
+.BR "\-f"
+The server is started in foreground and some debug messages will be printed
+out.
+.BR "\-v"
+Printoit the version number and exit.
+
+.SH FILES
+
+.nf
+/usr/sbin/radvcd
+.fi
+.SH BUGS
+
+There certainly are some bugs. If you find them or have other
+suggestions please contact the author.
+
+.SH "SEE ALSO"
+
+.BR radvd (8),
+.BR radvd.conf (5)
+.SH AUTHORS
+
+.nf
+Jean-Jacques Sarton		<jj.sarton@t-onlime.de>
+.fi

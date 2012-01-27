@@ -1,0 +1,188 @@
+.\"
+.\"
+.\"   Authors:
+.\"    Jean-Jacques Sarton		<jj.sarton@t-onlime.de>	 
+.\"
+.\"   This software is Copyright 1996 by the above mentioned author(s), 
+.\"   All Rights Reserved.
+.\"
+.\"   The license which is distributed with this software in the file COPYRIGHT
+.\"   applies to this software.
+.\"
+.\"
+.\"
+.TH ninsd 8 "26 Jan 2012" "v0.1" ""
+.SH NAME
+ninsd \- allow DDNS update of a name server as named.
+.SH SYNOPSIS
+.B ninsd
+.B "[ \-f ] [ \-v ] [ \-t ttl_max ] [ \-i interface ]"
+
+.SH DESCRIPTION
+.B ninsd
+work together with
+.B ninfod
+a daemon which is to be installed on every IPv6 LAN client
+and the informations provided by
+.B radvd
+(
+.B router/neighbor advertisement
+and also
+.B RDNSS
+and
+.B DNSSL
+).
+
+.B ninsd
+If the LAN client are only only connfigured via
+.B radvd
+there is no way for updating the DNS information stored by
+.B named
+or an other name server allowing DDNS.
+
+.B ninsd
+will send update message on the name server via nsupdate.
+The information about the domain is taken from the router
+advertisemnt messages send by radvd. All icmp-v6 message
+send by
+.B
+radvd
+are received and analyzed. If a new system is found, the
+name and global IPv6 addresses are queried for the new
+system. If all required data are available,
+.B
+nsupdate will be launched.
+
+If
+.B ninsd
+don't receive icmp-v6 messages within a given time the
+concerned system will be queried and for the case there
+is no answer the name server will also be uopdated
+(deletion of the entry for the presumed dead LAN client).
+
+.SH OPTIONS
+ 
+.TP
+.BR "\-f"
+The server is started in foreground and some debug messages will be printed
+out.
+
+.TP
+.BR "\-v"
+Printout the version number and exit.
+
+.TP
+.BR "\-t ttl_max"
+The time to leave is normaly got from the
+.B radvd
+router advertissement message. This time default normally
+to 600 seconds (MaxRtrAdvInterval) but can be set to an higher
+value. The ttl_max value (in second) will be taken for checks
+if the value got from radvd is bigger. You may also set the
+ttl_max value to a smaller value.
+
+.TP
+.BR "\-i interface"
+This is mandatory. In order to send the different messages
+to the correct destination (router solicitation at launch time)
+and ninfo queries to the LAN clients
+.B ninsd
+need to known on which interface the query are to been send
+and received e.g, eth0.
+router
+
+.SH FILES
+
+.nf
+/usr/sbin/ninsdd
+.fi
+.SH BUGS
+
+There certainly are some bugs. If you find them or have other
+suggestions please contact the author.
+
+.SH "SEE ALSO"
+
+.BR radvd (8),
+.BR radvd.conf (5),
+.BR nsupdate (1),
+.BR named (8),
+.BR radvc (8)
+.BR ping6 (8)
+.BR ninfod (8)
+
+.SH RADVD configurations example
+.P
+.PD 0
+interface eth0 {
+.P
+.IP
+AdvSendAdvert on;
+.P
+.IP
+prefix 2001:d8:0:1::/64 {
+.P
+.TP 4
+.IP
+AdvOnLink on;
+.P
+.TP 4
+.IP 
+AdvAutonomous on;
+.P
+.IP
+};
+.P
+.IP
+RDNSS 2001:d8:0:1::1 {
+.P
+.IP
+};
+.P
+.IP
+DNSSL example.org {
+.P
+.IP
+};
+.P
+};
+.PD
+
+.BT NAMED configuration
+The configuration file for the dynamic zone shall only
+allow update from the local host. This can be done with
+the statments
+.P
+.PD 0
+acl ipv6-update {
+.P
+.IP
+::1;
+.P
+};
+.PD
+.P
+and within the master zone declaration and 
+allow-upate insert "ipv6-update;"
+.P
+for example
+.P
+.PD 0
+allow-update {
+.P
+.IP
+ipv6-update;
+.P
+.IP
+key-xyz; # other allowed clients
+.P
+};
+
+.SH "LINKS"
+https://github.com/yaegashi/ninfod
+
+.SH AUTHORS
+
+.nf
+Jean-Jacques Sarton		<jj.sarton@t-onlime.de>
+.fi

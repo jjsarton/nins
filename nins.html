@@ -1,0 +1,139 @@
+<!DOCTYPE html> <!-- HTML 5 -->
+<html lang="en">
+<head>
+	<title>IPv6 Utility for the Name Service</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+	<meta name="keywords" content="IPv6, DDNS">
+	<style type="text/css">
+		body {
+			font-family: helvetica, sans-serif;
+			font-size:	0.9em;
+		}
+		#wrapper {
+			width: 40em;
+			margin: auto;
+		}
+		.decimal {
+			list-style-type:decimal;
+		}
+	</style>
+</head>
+<body>
+	<div id="wrapper">
+		<h1>Ninsd an utility for DDNS with IPv6</h1>
+		<h2>IPv6 radvd/dhcpd v6</h2>
+		<p>
+			In order to provide routing information to the system within
+			the LAN, the daemon <strong>radvd</strong> must be launched.
+			With radvd the connected system can auto configure themselves
+			(stateless mode) and a valid IPv6 Address based on the
+			Mac Address of the interface or a temporary address which
+			help to provide anonymity. 
+		</p>
+		<p>
+			The IPv6 Address can also be assigned by the dhcpd server.
+			For this cases we always need an instance of the radvd server
+			which will provide the system with routing information.
+		</p>
+		<p>
+			If we have two system within the LAN (alice and bob)
+			which offer different services we must use a name server
+			which know the systems and therefore we need fixed addresses.
+		</p>
+		<p>
+			The DHCPv6 server don't presently allow to update the
+			name server with the information about the attached systems.
+			We will also not be able, for example, to display a web page
+			offered by alice by typing the URL http://alice.example.com
+			on the bob system. We must enter a complicated IPv6 address
+			in order to do this.
+		</p>
+		<h2>The avahi discovery system</h2>
+		<p>
+			On linux based system the avahi components allow ro publish
+			informations about the different services offered by the
+			system. Avahi provide also a multicast DNS service which
+			should allow to address the different systems on the LAN
+			with there name e.g. alice.local or bob.local.
+		</p>
+		<p>
+			Some aspect of the specification for these services are
+			not very good and the adresses returned by the resolver
+			library mdns are not OK or not available. Due to this
+			avahi don't solve the DNS problem.
+		</p>
+		<h2>An icmp-v6 based approach</h2>
+		<p>
+			The system on the LAN communicate always via the Internet
+			Control Message Protocol v6 in order to exchange information
+			as the routing information send by radvd.
+		</p>
+		<p>
+			The icmp-v6 protocol know a node information extention
+			(ninfo) which can be used in order to get the name or
+			the IPv6 addresses od the systems within the lan.
+			Unfortunately this is not implemented within the Linux
+			kernel.
+		</p>
+		<h2>The ninfod daemon</h2>
+		<p>
+			As the time as rfc 4620 what published a daemon (ninfod)
+			appeared and with this daemon it what possible to get
+			some information about the systems running this daemon
+			via the ping6 utility.
+		</p>
+		<p>
+			If we install the ninfod server on all systems we will
+			be able to get all wanted information with the ping6 utility,
+			but this is not a very way.
+		</p>
+		<p>
+			The solution is therefore to use a dedicated server which
+			listen for icmp-v6 message and if some messages are
+			detected to query the wanted information.
+		</p>
+		<h2>ninsd</h2>
+		<p>
+			Ninsd (None Information Name Server Daemon) is such a daemon which
+			listen on the router advertisement messages and if a new
+			system is recognised, look for the IPv6 adress and name of
+			the systems.
+		</p>
+		<p>
+			Two approach are primary possible:
+			<ol class="decimal">
+				<li>
+					<p>ninsd is installed on all systems and act as helper
+				    for the DNS resolver.
+				    </p>
+				</li>
+				<li><p>ninsd is installed on the server and provide a normal
+				   name server as bind with the name and address of the
+				   newly detected systems.
+				   </p>
+				</li>
+			</ol>
+		</p>
+		<p>
+			The second approach what choose, this implies that the
+			name server and ninsd are running on the same machine. The
+			server address is "::1" so that we will not have troubles
+			if an update come from global addresses.
+		</p>
+		<h2>NetworkManager and /etc/resolv.conf</h2>
+		<p>
+			The NetworkManager (at least on the Ubuntu 11.04 used for
+			tests) don't update the file resolv.conf if the network
+			what plugged out and the in. Due to this the file resolv.conf
+			don't contain valid informations.
+		</p>
+		<p>
+			The radvc daemon what created in order to remedy to this.
+			In case the connection is lost, the kernel will send some
+			messages to the radvd daemon which will send an router
+			advertissement message. This message contain enough informations
+			in order to build the file /etc/resolv.conf. 
+		</p>
+	</div>
+</body>
+

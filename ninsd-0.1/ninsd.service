@@ -1,0 +1,11 @@
+[Unit]
+Description=Ninsd an helper for the resolver and IPv6
+After=network.target
+
+[Service]
+Type=forking
+EnvironmentFile=-/etc/sysconfig/ninsd
+ExecStart=/usr/sbin/ninsd -i $NINSD_IFACE
+
+[Install]
+WantedBy=network.target

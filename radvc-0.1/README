@@ -1,0 +1,15 @@
+Radvc
+-----
+
+Radvc is a little helper which will modify or generate the file
+/etc/resolv.conf.
+
+This programm shall compile on all Linux based systems.
+
+Install
+
+Log as root with su or sudo -s and call:
+
+make install
+
+Thats all,
