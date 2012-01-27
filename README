@@ -1,0 +1,57 @@
+ninsd
+-----
+
+Ninsd ist ein kleinen daemon welches Rechner informationen
+über das icmpv6 ninfo als Grundlage für die Namen und Adresse
+Auflösung von Rechner, die mit IPv6 vetrieben werden, nutz.
+
+Da das Kernel ninfo nicht unterstüzt, muss ein User Space
+die entsprechenden Abfragen die von z.B. ping6 gestellt werden
+beantwortet sein.
+
+Mit der ninfo icmpv6 Machrichten können name und Adressen der
+betreiligten rechner ermittelt werden.
+
+Neben diese Aufgabe, sollte auch die Datei /etc/resolv.conf
+an der Netzverhältnisse angepass werden.
+
+Der Daemon radvd, welches für die automatische Konfiguration
+dient, kann sowohl die Adresse eine recursive DNS Server wie
+eine Suchliste (Eintrag search in der Datei /etc/reolv.conf)
+liefern. Diese Daten werden leider nur unvollständig vom
+Linux Kernel behandelt (search list). Damit wird bestensfalls
+die Adresse einen Recursiven DNS Server in der Datei
+/etc/resolv.conf eingetragen.
+
+Durch Auswerten der Router Advertisenent Nachrichten
+kann, zusätzlich zu den Nameserver (wird normalerweise von
+Netwerk Manager, falls aktiv eingetragen) auch die Search
+Domainen so dass alle rechner in der domaine gefunden werden
+können.
+Wenn die Router Solicitation Nachrichen ebenfalls überwacht
+werden, können die link-local Adressen von neue Teilnehmer
+ermittelt werden und die DNS Daten für das neue Gerät können
+geziehlt abgefragt werden.
+
+Der neue Rechner kann selbst ein Echo Request auf Adresse
+ff02::01 senden und erhält als Antwort die link local Adresse
+der Teilnehmer im Netz und ist somit in der Lage DNS Informationen
+für seine Nachbarn zu ermitteln.
+
+Damit Rechner die aus dem Netz entfernt wurden aus der
+Liste der bekannten Rechner ausgetragen werden kann von
+Zeit zur Zeit ein Rechner ein Echo Request senden, alle
+Teilnehmer sollten diese Information beantworten und
+auch ihren aktuellen Datenbestand aktualisieren. Damit
+es nicht zu eine erhöhten Aufkommen kommt, wird die Abfrage
+Zeit innerhalb bestimmte Grenzen per Zufallgenerator
+berechnet. Sobald eine Request erkannt wurde errechnen
+alle Rechner ein neuenZeitpunkt.
+
+radvc
+-----
+
+Radvc ist auf Clients rechner zu installieren die nur
+mit radvd ihreIPv6  Adresse bilden oder bei den das
+DHCP v6 nicht optimal unterstüzt wird.
+
