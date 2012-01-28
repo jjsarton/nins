@@ -7,21 +7,20 @@
 #include <getopt.h>
 #include <sys/file.h>
 #include <sys/time.h>
-#include <sys/signal.h>
-#include <sys/ioctl.h>
-#include <net/if.h>
-#include <sys/uio.h>
-#include <sys/poll.h>
 #include <ctype.h>
 #include <errno.h>
 #include <string.h>
-#include <netdb.h>
-#include <poll.h>
 
+#include <sys/ioctl.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netinet/ip6.h>
 #include <netinet/icmp6.h>
+#include <net/if.h>
+#include <sys/uio.h>
+
+#include <poll.h>
 
 #include "storage.h"
 #include "decode_ra.h"
@@ -33,7 +32,7 @@
 /* check at last every 10 minute for life */
 #define TTL_MAX 600
 
-static int ttl_max = 0;
+static int ttl_max = TTL_MAX;
 static int sock = -1;
 
 struct sockaddr_in6 whereto; /* who to ping */
@@ -101,8 +100,9 @@ int icmp_socket(char *device)
     return sock;
 }
 
-void send_ra_solicit(unsigned char *buf, struct sockaddr_in6 *whereto)
+int send_ra_solicit(unsigned char *buf, struct sockaddr_in6 *whereto)
 {
+    int err;
     inet_pton(AF_INET6, "ff02::02", &whereto->sin6_addr);
     /* build a message */
     struct nd_router_solicit *solicit;
@@ -112,11 +112,13 @@ void send_ra_solicit(unsigned char *buf, struct sockaddr_in6 *whereto)
     solicit->nd_rs_cksum = 0;
     solicit->nd_rs_reserved = 0;
     unsigned char *p = (unsigned char*)buf + sizeof(struct nd_router_solicit);
-    send_probe(p - buf,1);
+    err = send_probe(p - buf,1);
+    return err;
 }
 
-void echo_request(unsigned char *buf, struct sockaddr_in6 *whereto)
+int echo_request(unsigned char *buf, struct sockaddr_in6 *whereto)
 {
+    int err;
     /* this will send a echo request which will only
      * be answered from our local link address
      */
@@ -126,7 +128,8 @@ void echo_request(unsigned char *buf, struct sockaddr_in6 *whereto)
     icmph->icmp6_code = 0;
     icmph->icmp6_cksum = 0;
     icmph->icmp6_id = 0; /* not process with id = 0 -> we are means */
-    send_probe(sizeof(struct icmp6_hdr),-1);
+    err = send_probe(sizeof(struct icmp6_hdr),-1);
+    return err;
 }
 
 static int send_probe(int len, int set_hop)
@@ -249,7 +252,7 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
     {
         case ICMP6_ECHO_REPLY:
             printf("got ICMP6_ECHO_REPLY from %s\n", print_addr(&from->sin6_addr));
-            if ( icmph->icmp6_id )
+            if ( icmph->icmp6_id == 0)
             {
                 /* answer from our interface */
                 memcpy(&own_addr, &from->sin6_addr, sizeof(own_addr));
@@ -311,7 +314,9 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                 delete_all_clients(domain);
             }
             else if ( ttl > ttl_max )
+            {
                 ttl = ttl_max;
+            }
         break;
         case ND_NEIGHBOR_ADVERT:
             printf("got ND_NEIGHBOR_ADVERT from %s\n", print_addr(&from->sin6_addr));
@@ -380,7 +385,9 @@ int mainloop(int sock, int packlen)
             {
                 perror("recvmsg");
                 if (errno == EAGAIN || errno == EINTR)
+                {
                     continue;
+                }
             }
             else
             {

@@ -11,7 +11,7 @@ OBJECTS = ninsd.o list.o storage.o decode_ra.o
 all: ninsd
 
 ninsd: $(OBJECTS)
-	@cc -g -o ninsd $(OBJECTS)
+	cc -g -o ninsd $(OBJECTS)
 
 clean:
 	@+rm ninsd $(OBJECTS)
