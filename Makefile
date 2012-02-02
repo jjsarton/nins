@@ -1,12 +1,12 @@
 all:
-	@cd ninsd-*; make;\
+	@cd ninsd; make;\
 	cd ..;\
-	cd radvc-*; make;
+	cd radvc; make;
 
 clean:
-	@-cd ninsd-*; make clean;\
+	@-cd ninsd; make clean;\
 	cd ..;\
-	cd radvc-*; make clean;
+	cd radvc; make clean;
 
 tgz: clean
 	@cd ..;\
