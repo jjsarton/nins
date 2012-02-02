@@ -27,8 +27,8 @@ static node_info_t *create_element(void);
 static int cpm_local_addr(const list_t *a, const void *b);
 static int cpm_global_addr(const list_t *a, const void *b);
 static int cpm_name(const list_t *a, const void *b);
-static void call_nsupdate(struct in6_addr *addr, char *name, int ttl, char *domain);
-static void update_ns(int ttl, char *domain);
+static void call_nsupdate(struct in6_addr *addr, char *name, int ttl, char *domain, char *updater);
+static void update_ns(int ttl, char *domain, char *updater);
 
 static node_info_t *create_element(void)
 {
@@ -132,7 +132,7 @@ int node_info_add_elem(struct in6_addr* addr )
     return 1;
 }
 
-int node_info_add_global(struct in6_addr* local, struct in6_addr* global, int ttl, char *domain)
+int node_info_add_global(struct in6_addr* local, struct in6_addr* global, int ttl, char *domain, char *updater)
 {
     list_t *elem;
     node_info_t *ni;
@@ -150,14 +150,14 @@ int node_info_add_global(struct in6_addr* local, struct in6_addr* global, int tt
         ni->flag |= NODE_INFO_GLOB;
         if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL)
         {
-            call_nsupdate(&ni->global, ni->name, ttl, domain);
+            call_nsupdate(&ni->global, ni->name, ttl, domain, updater);
             ni->flag = NODE_INFO_ALL;
         }
     }
     return 1;
 }
 
-int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl)
+int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl, char *updater)
 {
     int dlen = domain?strlen(domain)+1:0;
     list_t *elem;
@@ -182,14 +182,14 @@ int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl
         gettimeofday(&ni->last_seen,NULL);
         if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL)
         {
-            call_nsupdate(&ni->global, ni->name, ttl, domain);
+            call_nsupdate(&ni->global, ni->name, ttl, domain, updater);
             ni->flag = NODE_INFO_ALL;
         }
     }
     return 1;
 }
 
-node_info_t *search_incomplete(int ttl, char *domain)
+node_info_t *search_incomplete(int ttl, char *domain, char *updater)
 {
     struct timeval  act_time;
     list_t *elem = root;
@@ -221,15 +221,15 @@ node_info_t *search_incomplete(int ttl, char *domain)
         }
         elem = elem->next;
     }
-    update_ns(0, domain);
+    update_ns(0, domain, updater);
     return ret;
 }
 
-static void call_nsupdate(struct in6_addr *addr, char *name, int ttl, char *domain )
+static void call_nsupdate(struct in6_addr *addr, char *name, int ttl, char *domain, char *updater)
 {
     char str[256];
     inet_ntop(AF_INET6, addr, str, sizeof(str));
-    FILE *p = popen("nsupdate", "w");
+    FILE *p = popen(updater, "w");
     if ( p )
     {
         printf("server ::1\n");
@@ -247,7 +247,7 @@ static void call_nsupdate(struct in6_addr *addr, char *name, int ttl, char *doma
     }
 }
 
-void update_ns(int ttl, char *domain)
+void update_ns(int ttl, char *domain, char *updater)
 {
     struct timeval  act_time;
     list_t *elem = root;
@@ -260,7 +260,7 @@ void update_ns(int ttl, char *domain)
             if ((ni->flag & NODE_INFO_CHECK) == NODE_INFO_CHECK )
             {
                 /* call nsupdate  for remove */
-                call_nsupdate(&ni->global, ni->name,0, domain);
+                call_nsupdate(&ni->global, ni->name,0, domain, updater);
                 list_remove(&root, elem);
                 free(ni);
                 break;
@@ -270,14 +270,14 @@ void update_ns(int ttl, char *domain)
     }
 }
 
-void delete_all_clients(char *domain)
+void delete_all_clients(char *domain, char *updater)
 {
     node_info_t *ni;
     list_t *elem = root;
     while (elem)
     {
         ni = (node_info_t *)elem->data;
-        call_nsupdate(&ni->global, ni->name,0, domain);
+        call_nsupdate(&ni->global, ni->name,0, domain, updater);
         list_remove(&root, elem);
         free(ni);
         elem = root;

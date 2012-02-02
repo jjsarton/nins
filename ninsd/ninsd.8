@@ -16,7 +16,7 @@
 ninsd \- allow DDNS update of a name server as named.
 .SH SYNOPSIS
 .B ninsd
-.B "[ \-f ] [ \-v ] [ \-t ttl_max ] [ \-i interface ]"
+.B "[ \-f ] [ \-v ] [ \-t ttl_max ] [ \-i interface] [ \-s updater]"
 
 .SH DESCRIPTION
 .B ninsd
@@ -89,7 +89,14 @@ and ninfo queries to the LAN clients
 .B ninsd
 need to known on which interface the query are to been send
 and received e.g, eth0.
-router
+
+.TP
+.BR "\-s updater"
+If you don't use the
+.B bind
+server, you may call a utility (script or binary) wich will
+interpret the nsupdate commands and update for example the
+file /etc/hosts.
 
 .SH FILES
 

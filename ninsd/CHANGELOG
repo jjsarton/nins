@@ -1,0 +1,5 @@
+2012 February 02 Version 0.2
+- Rewrite portion of code and place them in new files
+  The main file which what derived from the ping6 command
+  used to much globale variable,...
+- Makefile modified according to new file structur

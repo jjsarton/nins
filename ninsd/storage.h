@@ -21,14 +21,14 @@ typedef struct node_info_s {
 } node_info_t;
 
 extern int node_info_add_elem(struct in6_addr* addr);
-extern int node_info_add_global(struct in6_addr* local, struct in6_addr*global, int ttl, char *domain);
-extern int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl);
+extern int node_info_add_global(struct in6_addr* local, struct in6_addr*global, int ttl, char *domain, char *updater);
+extern int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl, char *updater);
 extern int remove_elem(node_info_t *node_info);
 extern node_info_t *search_name(char* name);
 extern node_info_t *search_global_address(struct in6_addr* addr);
 extern node_info_t *search_local_address(struct in6_addr* addr);
-extern node_info_t *search_incomplete(int ttl, char *domain);
-extern void delete_all_clients(char *domain);
+extern node_info_t *search_incomplete(int ttl, char *domain, char *updater);
+extern void delete_all_clients(char *domain, char *updater);
 
 #if defined (__cplusplus) || defined (c_plusplus)
 }

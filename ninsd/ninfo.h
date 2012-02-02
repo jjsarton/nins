@@ -33,14 +33,6 @@ struct ni_hdr {
 #define NI_QTYPE_IPV4ADDR 4
 
 /* Flags */
-#if 0
-#define NI_IPV6ADDR_F_TRUNCATE  __constant_cpu_to_be16(0x0001)
-#define NI_IPV6ADDR_F_ALL       __constant_cpu_to_be16(0x0002)
-#define NI_IPV6ADDR_F_COMPAT    __constant_cpu_to_be16(0x0004)
-#define NI_IPV6ADDR_F_LINKLOCAL __constant_cpu_to_be16(0x0008)
-#define NI_IPV6ADDR_F_SITELOCAL __constant_cpu_to_be16(0x0010)
-#define NI_IPV6ADDR_F_GLOBAL    __constant_cpu_to_be16(0x0020)
-#endif
 #define NI_IPV6ADDR_F_TRUNCATE  ntohs(0x0001)
 #define NI_IPV6ADDR_F_ALL       ntohs(0x0002)
 #define NI_IPV6ADDR_F_COMPAT    ntohs(0x0004)
@@ -48,6 +40,6 @@ struct ni_hdr {
 #define NI_IPV6ADDR_F_SITELOCAL ntohs(0x0010)
 #define NI_IPV6ADDR_F_GLOBAL    ntohs(0x0020)
 
-#define NI_IPV4ADDR_F_TRUNCATE NI_IPV6ADDR_F_TRUNCATE
-#define NI_IPV4ADDR_F_ALL      NI_IPV6ADDR_F_ALL
+#define NI_IPV4ADDR_F_TRUNCATE  NI_IPV6ADDR_F_TRUNCATE
+#define NI_IPV4ADDR_F_ALL       NI_IPV6ADDR_F_ALL
 

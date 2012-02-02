@@ -1,0 +1,133 @@
+/* send.c
+ * build and send icmp-v6 messaged
+ */
+ 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <time.h>
+#include <sys/param.h>
+#include <sys/socket.h>
+#include <getopt.h>
+#include <sys/file.h>
+#include <sys/time.h>
+#include <ctype.h>
+#include <errno.h>
+#include <string.h>
+#include <stdint.h>
+
+#include <sys/ioctl.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip6.h>
+#include <netinet/icmp6.h>
+#include <net/if.h>
+#include <sys/uio.h>
+
+#include <poll.h>
+
+#include "decode_ra.h"
+#include "ninfo.h"
+#include "send.h"
+
+
+static int send_probe(int sock, uint8_t *buf, struct in6_addr *addr, int len, int set_hop)
+{
+    struct sockaddr_in6 whereto;
+    memset(&whereto,0, sizeof(struct sockaddr_in6));
+    whereto.sin6_family = AF_INET6;
+    whereto.sin6_port = htons(IPPROTO_ICMPV6);
+    memcpy(&whereto.sin6_addr, addr, sizeof(struct in6_addr));
+
+    if ( set_hop )
+    {
+        /* handle ra solicit and echo request so that
+         * we will get an answer
+         */
+        int hoplimit;
+        socklen_t hlen = sizeof(hoplimit);
+        hoplimit = set_hop;
+        setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &hoplimit, hlen);
+    }
+
+    int  cc;
+    struct msghdr mhdr;
+    struct iovec iov;
+
+    iov.iov_len  = len;
+    iov.iov_base = buf;
+    mhdr.msg_name = &whereto;
+    mhdr.msg_namelen = sizeof(struct sockaddr_in6);
+    mhdr.msg_iov = &iov;
+    mhdr.msg_iovlen = 1;
+    mhdr.msg_control = NULL;
+    mhdr.msg_controllen = 0;
+
+    cc = sendmsg(sock, &mhdr, 0);
+    if ( cc < 0 )
+    {
+        perror("sendmsg");
+    }
+    return (cc == len ? 0 : cc);
+
+}
+
+static int build_niquery(uint8_t *buf, struct in6_addr *addr,  int ni_query_code)
+{
+    struct ni_hdr *nih = (struct ni_hdr *)buf;
+    void *ni_subject = NULL;
+    int cc;
+    int i;
+
+    nih->ni_type = ICMPV6_NI_QUERY;
+    nih->ni_code = NI_SUBJ_IPV6;
+    nih->ni_cksum = 0;
+    nih->ni_qtype = htons(ni_query_code);
+    nih->ni_flags = ni_query_code==NI_QTYPE_IPV6ADDR?(NI_IPV6ADDR_F_GLOBAL):0;
+    for (i = 0; i < 8; i++)
+        nih->ni_nonce[i] = rand();
+    cc = sizeof(*nih);
+
+    /* header build now fill query data */
+    ni_subject = (uint8_t*)buf+cc;
+    memcpy(ni_subject, addr, sizeof(struct in6_addr));
+
+    cc += sizeof(struct in6_addr);
+
+    return cc;
+}
+
+int query_addr(int sock, uint8_t *buf, struct in6_addr *addr)
+{
+    int cc;
+    cc = build_niquery(buf, addr, NI_QTYPE_IPV6ADDR);
+    return send_probe(sock, buf, addr, cc, 0);
+}
+
+int query_name(int sock, uint8_t *buf, struct in6_addr *addr)
+{
+    int cc;
+    cc = build_niquery(buf, addr, NI_QTYPE_NAME);
+    return send_probe(sock, buf, addr, cc, 0);
+}
+
+int send_ra_solicit(int sock, uint8_t *buf)
+{
+    int err;
+    struct in6_addr addr;
+    /* set receiver address */
+    inet_pton(AF_INET6, "ff02::02", &addr);
+
+    /* build the message */
+    struct nd_router_solicit *solicit;
+    solicit = (struct nd_router_solicit*)buf;
+    solicit->nd_rs_type = ND_ROUTER_SOLICIT;
+    solicit->nd_rs_code = 0;
+    solicit->nd_rs_cksum = 0;
+    solicit->nd_rs_reserved = 0;
+    uint8_t *p = (uint8_t*)buf + sizeof(struct nd_router_solicit);
+    err = send_probe(sock, buf, &addr, p - buf, 255);
+    return err;
+}
