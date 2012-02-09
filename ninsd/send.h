@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 extern int query_addr(int sock, uint8_t *buf, struct in6_addr *addr);
+extern int query_ipv4(int sock, uint8_t *buf, struct in6_addr *addr);
 extern int query_name(int sock, uint8_t *buf, struct in6_addr *addr);
 extern int send_ra_solicit(int sock, uint8_t *buf);
 

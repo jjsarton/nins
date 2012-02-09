@@ -8,7 +8,7 @@ then
     source /etc/sysconfig/ninsd
 fi
 
-if [ x"$ARGS" = x ]
+if [ x"$NINSD_IFACE" = x ]
 then
    exit 1;
 fi
@@ -18,19 +18,32 @@ start()
     PROCS=`pgrep minsd`
     if [ x"$PROCS" = x ]
     then
-        /usr/sbin/ninsd $ARGS
+        echo "start ninsd"
+        /usr/sbin/ninsd $NINSD_IFACE $NINSD_MAP
     fi
 }
 
 stop()
 {
+   echo "stop ninsd"
    pkill /usr/bin/ninsd
 }
 
+status()
+{
+    PROCS=`pgrep minsd`
+    if [ x"$PROCS" = x ]
+    then
+        echo "ninsd stopped"
+    else
+        echo "ninsd running"
+    fi
+}
 
 case $1 in
     start) start;;
     stop) stop;;
+    status) status;;
     restart) stop; start;;
 esac
 

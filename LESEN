@@ -1,0 +1,25 @@
+ninsd
+-----
+
+ninsd ist ein kleiner daemon, welcher Rechnerinformationen aus
+dem icmpv6 ninfo Protokoll als Grundlage für die Namens- und
+Adressauflösung von Rechnern, die mit IPv6 betrieben werden,
+nutzt.
+
+Mit den ninfo icmpv6 Nachrichten können Namen und Adressen
+der beteiligten Rechner ermittelt werden und der Namen Server
+wird aktualisiert (DDNS)
+
+
+radvc
+-----
+
+Radvc ist auf Client-Rechnern zu installieren die nur mit radvd
+ihre IPv6  Adresse bilden oder bei den das DHCP v6 nicht optimal
+unterstüzt wird.
+
+In einer zukünfige Version wird das Dämon rdnssd welches
+für viele Distribubtionen als fertiges Packet vorhanden ist
+die fehlende "Domäne Such Liste" auch berückdichtigen.
+Bis dahin sollte radvc verwendet werden.
+

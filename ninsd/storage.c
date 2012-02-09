@@ -19,6 +19,8 @@
 #include "list.h"
 #include "storage.h"
 
+#define NEW_NSUPD
+
 extern char *print_addr(struct in6_addr *addr);
 
 static list_t *root = NULL;
@@ -27,7 +29,11 @@ static node_info_t *create_element(void);
 static int cpm_local_addr(const list_t *a, const void *b);
 static int cpm_global_addr(const list_t *a, const void *b);
 static int cpm_name(const list_t *a, const void *b);
+#ifdef NEW_NSUPD
+static void call_nsupdate(node_info_t *ni, int ttl, char *domain, char *updater);
+#else
 static void call_nsupdate(struct in6_addr *addr, char *name, int ttl, char *domain, char *updater);
+#endif
 static void update_ns(int ttl, char *domain, char *updater);
 
 static node_info_t *create_element(void)
@@ -47,6 +53,13 @@ static int cpm_local_addr(const list_t *a, const void *b)
                   sizeof(struct in6_addr));
 }
 
+static int cpm_ipv4_addr(const list_t *a, const void *b)
+{
+    return memcmp((const void*)&(((node_info_t*)(a->data))->ipv4),
+                  (const void*) b,
+                  sizeof(struct in_addr));
+}
+
 static int cpm_global_addr(const list_t *a, const void *b)
 {
     return memcmp((const void*)&(((node_info_t*)(a->data))->global),
@@ -63,6 +76,16 @@ static int cpm_name(const list_t *a, const void *b)
 node_info_t *search_local_address(struct in6_addr* addr)
 {
     list_t *elem = list_search(root, addr, cpm_local_addr);
+    if (elem)
+    {
+        return (node_info_t *)elem->data;
+    }
+    return (node_info_t *)NULL;
+}
+
+node_info_t *search_ipv4_address(struct in_addr* addr)
+{
+    list_t *elem = list_search(root, addr, cpm_ipv4_addr);
     if (elem)
     {
         return (node_info_t *)elem->data;
@@ -150,8 +173,42 @@ int node_info_add_global(struct in6_addr* local, struct in6_addr* global, int tt
         ni->flag |= NODE_INFO_GLOB;
         if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL)
         {
+#ifdef NEW_NSUPD
+            call_nsupdate(ni, ttl, domain, updater);
+#else
             call_nsupdate(&ni->global, ni->name, ttl, domain, updater);
-            ni->flag = NODE_INFO_ALL;
+#endif
+            ni->flag |= NODE_INFO_ALL;
+        }
+    }
+    return 1;
+}
+
+int node_info_add_ipv4(struct in6_addr* local, struct in_addr* ipv4, int ttl, char *domain, char *updater)
+{
+printf("node_info_add_ipv4\n");
+    list_t *elem;
+    node_info_t *ni;
+    /* may be we get 127.0.0.1, don't allows this */
+    if ( ((uint8_t*)ipv4)[0] == 127 )
+    {
+        return 1;
+    }
+    elem = list_search(root, local, cpm_local_addr);
+    if ( elem )
+    {
+        ni = (node_info_t*)elem->data;
+        memcpy(&ni->ipv4, ipv4, sizeof(*ipv4));
+        gettimeofday(&ni->last_seen, NULL);
+        ni->flag |= NODE_HAS_IPV4;
+        if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL)
+        {
+#ifdef NEW_NSUPD
+            call_nsupdate(ni, ttl, domain, updater);
+#else
+            call_nsupdate4(&ni->ipv4, ni->name, ttl, domain, updater);
+#endif
+            ni->flag |= NODE_HAS_IPV4;
         }
     }
     return 1;
@@ -182,14 +239,18 @@ int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl
         gettimeofday(&ni->last_seen,NULL);
         if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL)
         {
+#ifdef NEW_NSUPD
+            call_nsupdate(ni, ttl, domain, updater);
+#else
             call_nsupdate(&ni->global, ni->name, ttl, domain, updater);
+#endif
             ni->flag = NODE_INFO_ALL;
         }
     }
     return 1;
 }
 
-node_info_t *search_incomplete(int ttl, char *domain, char *updater)
+node_info_t *search_incomplete(int ttl, char *domain, char *updater, int get_ipv4)
 {
     struct timeval  act_time;
     list_t *elem = root;
@@ -200,7 +261,7 @@ node_info_t *search_incomplete(int ttl, char *domain, char *updater)
         node_info_t *ni = (node_info_t *)elem->data;
         if ( ni->last_seen.tv_sec < act_time.tv_sec+1 )
         {
-            if ( (ni->flag & NODE_INFO_GLOB) != NODE_INFO_GLOB )
+            if ( ((ni->flag & NODE_INFO_GLOB) != NODE_INFO_GLOB) || (get_ipv4 && !(ni->flag & NODE_HAS_IPV4)) )
             {
                 if ( ni->last_seen.tv_sec+3 < act_time.tv_sec )
                 {
@@ -225,6 +286,89 @@ node_info_t *search_incomplete(int ttl, char *domain, char *updater)
     return ret;
 }
 
+#ifdef NEW_NSUPD
+static void call_nsupdate(node_info_t *info, int ttl, char *domain, char *updater)
+{
+    char str[256];
+    FILE *p = popen(updater, "w");
+    if ( p )
+    {
+        printf("server ::1\n");
+        printf("zone %s.\n",domain);
+        printf("update delete %s AAAA\n", info->name);
+        if ( info->flag&NODE_HAS_IPV4 )
+        {
+            printf("update delete %s A\n", info->name);
+        }
+        if ( ttl > 0 )
+        {
+            inet_ntop(AF_INET6, &info->global, str, sizeof(str));
+            printf("update add %s %d AAAA %s\n", info->name, ttl, str);
+            if ( info->flag&NODE_HAS_IPV4 )
+            {
+                inet_ntop(AF_INET, &info->ipv4, str, sizeof(str));
+                printf("update add %s %d A %s\n", info->name, ttl, str);
+            }
+        }
+        fprintf(p,"server ::1\n");
+        fprintf(p,"update delete %s AAAA\n", info->name);
+        if ( info->flag&NODE_HAS_IPV4 )
+        {
+            fprintf(p,"update delete %s A\n", info->name);
+        }
+        if ( ttl > 0 )
+        {
+            inet_ntop(AF_INET6, &info->global, str, sizeof(str));
+            fprintf(p,"update add %s %d AAAA %s\n", info->name, ttl, str);
+            if ( info->flag&NODE_HAS_IPV4 )
+            {
+                inet_ntop(AF_INET, &info->ipv4, str, sizeof(str));
+                fprintf(p,"update add %s %d A %s\n", info->name, ttl, str);
+            }
+        }
+        fprintf(p,"send\n");
+        pclose(p);
+    }
+
+}
+void update_ns(int ttl, char *domain, char *updater)
+{
+    struct timeval  act_time;
+    list_t *elem = root;
+    gettimeofday(&act_time, NULL);
+    while(elem)
+    {
+        node_info_t *ni = (node_info_t *)elem->data;
+        if ( ni->last_seen.tv_sec + ttl < act_time.tv_sec )
+        {
+            if ((ni->flag & NODE_INFO_CHECK) == NODE_INFO_CHECK )
+            {
+                /* call nsupdate  for remove */
+                call_nsupdate(ni, 0, domain, updater);
+                list_remove(&root, elem);
+                free(ni);
+                break;
+            }
+        }
+        elem = elem->next;
+    }
+}
+
+void delete_all_clients(char *domain, char *updater)
+{
+    node_info_t *ni;
+    list_t *elem = root;
+    while (elem)
+    {
+        ni = (node_info_t *)elem->data;
+        call_nsupdate(ni, 0, domain, updater);
+        list_remove(&root, elem);
+        free(ni);
+        elem = root;
+    }
+}
+#else
+
 static void call_nsupdate(struct in6_addr *addr, char *name, int ttl, char *domain, char *updater)
 {
     char str[256];
@@ -246,6 +390,7 @@ static void call_nsupdate(struct in6_addr *addr, char *name, int ttl, char *doma
         pclose(p);
     }
 }
+
 
 void update_ns(int ttl, char *domain, char *updater)
 {
@@ -283,3 +428,4 @@ void delete_all_clients(char *domain, char *updater)
         elem = root;
     }
 }
+#endif

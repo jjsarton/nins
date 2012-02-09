@@ -21,6 +21,7 @@
 <body>
 	<div id="wrapper">
 		<h1>Ninsd an utility for DDNS with IPv6</h1>
+		
 		<h2>IPv6 radvd/dhcpd v6</h2>
 		<p>
 			In order to provide routing information to the system within
@@ -28,17 +29,18 @@
 			With radvd the connected system can auto configure themselves
 			(stateless mode) and a valid IPv6 Address based on the
 			Mac Address of the interface or a temporary address which
-			help to provide anonymity. 
+			help to provide anonymity is generated. 
 		</p>
 		<p>
 			The IPv6 Address can also be assigned by the dhcpd server.
-			For this cases we always need an instance of the radvd server
-			which will provide the system with routing information.
+			For this cases we don't need the radvd server. The routing
+			information shall be provided by the DHCP system.
 		</p>
 		<p>
 			If we have two system within the LAN (alice and bob)
 			which offer different services we must use a name server
-			which know the systems and therefore we need fixed addresses.
+			which know the systems and therefore we need fixed addresses
+            and an entry within the name service configuration.			
 		</p>
 		<p>
 			The DHCPv6 server don't presently allow to update the
@@ -48,7 +50,8 @@
 			on the bob system. We must enter a complicated IPv6 address
 			in order to do this.
 		</p>
-		<h2>The avahi discovery system</h2>
+		<h2>Name resolution</h2>
+		<h3>The avahi discovery system</h3>
 		<p>
 			On linux based system the avahi components allow ro publish
 			informations about the different services offered by the
@@ -62,11 +65,11 @@
 			library mdns are not OK or not available. Due to this
 			avahi don't solve the DNS problem.
 		</p>
-		<h2>An icmp-v6 based approach</h2>
+		<h3>An icmp-v6 based approach</h3>
 		<p>
 			The system on the LAN communicate always via the Internet
 			Control Message Protocol v6 in order to exchange information
-			as the routing information send by radvd.
+			as, for example, the routing information send by radvd.
 		</p>
 		<p>
 			The icmp-v6 protocol know a node information extention
@@ -75,12 +78,12 @@
 			Unfortunately this is not implemented within the Linux
 			kernel.
 		</p>
-		<h2>The ninfod daemon</h2>
+		<h4>The ninfod daemon</h4>
 		<p>
-			As the time as rfc 4620 what published a daemon (ninfod)
-			appeared and with this daemon it what possible to get
-			some information about the systems running this daemon
-			via the ping6 utility.
+			The requirements stated within rfc 4620 are fullfilled
+			by the daemon ninfod. The only binary which allows
+			to send Node Informations request is ping6 (I have
+			not discovered programs which handle these information).
 		</p>
 		<p>
 			If we install the ninfod server on all systems we will

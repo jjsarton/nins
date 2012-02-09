@@ -39,7 +39,7 @@ install-sbin: ninsd
 	@make clean
 
 install-start:
-	@if [ -e /lib/systemd/system/ ]; then \
+	@if [ -e /lib/systemd/system/ -a -e /bin/systemctl ]; then \
 	        make install-systemd;\
 	else \
 	        make install-init;\
@@ -61,7 +61,7 @@ build_service_file:
 	fi
 
 install-init:
-	@cp ninsc.sh /etc/init.d/ninsd
+	@cp ninsd.sh /etc/init.d/ninsd
 	@chmod a+x /etc/init.d/ninsd
 	@/etc/init.d/ninsd start
 	@if [ -e /etc/rc5.d ]; then \
@@ -79,7 +79,7 @@ uninstall-man:
 	@+rm -f /usr/share/man/man8/ninsd.8.gz
 
 uninstall-start:
-	@+if [ -e /lib/systemd/system/ ]; then \
+	@+if [ -e /lib/systemd/system/ -a -e /bin/systemctl ]; then \
 	        make uninstall-systemd;\
 	else \
 	        make uninstall-init;\

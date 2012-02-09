@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=forking
 EnvironmentFile=-/etc/sysconfig/ninsd
-ExecStart=/usr/sbin/ninsd -i $NINSD_IFACE
+ExecStart=/usr/sbin/ninsd -i $NINSD_IFACE $NINSD_MAP
 
 [Install]
 WantedBy=network.target

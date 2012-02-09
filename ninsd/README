@@ -1,0 +1,240 @@
+NINS
+----
+
+1) Ninsd
+---------
+
+This is a little daemon which must be run on the same
+machine as the Domain Name Server.
+
+An important design rule what to have a server which
+as far as possible don't need a configuration.
+
+Ninsd listen some icmp-v6 message (Router Advertisemnt,
+Router Solicitation and Neighnor Solitation) in order
+to get some informations for the local network and
+detect systems which are inserted into the LAN.
+
+In order to update the Nameserver with the IPv6 adress
+and the name of the recognized systems, ninsd send
+icmp-v6 Node Information Queries to the detected systems
+(RFC 4620).
+
+Ninsd update the Name Server after all required data are
+collected.
+
+Ninsd what developed for the use within a local home
+network and will only take into account one global IPv6
+adress, regardless of the number of global IPv6 adress on 
+the client. This is sufficient for the access of
+the systems on the home local area network.
+
+The normal way for updating the name server is to
+call nsupdate. If the used name server don't work
+with nsupdate, a own program or script may be launched
+from ninsd. This script must process the informations
+passed via stdin and emulate the nsupdate behavior.
+
+1.1) Requirements on the server
+-------------------------------
+
+A name server such as DNSMASK or NAMED (bind)
+shall be installed and configured on the server.
+
+Radvd must be installed and configured on one
+system of the local Network
+
+1.2) Requirements on the clients
+--------------------------------
+
+The daemon ninfod must be installed on each
+client.
+
+1.3) Configuration
+------------------
+
+1.3.1) Radvd:
+-------------
+The radvd configuration may look as follow:
+
+===================================
+interface eth0
+{
+    AdvSendAdvert on;
+    MinRtrAdvInterval 300;
+    MaxRtrAdvInterval 600;
+    prefix 2001:db8:cafe:dead::/64
+    {
+        AdvOnLink on;
+        AdvAutonomous on;
+        AdvRouterAddr on;
+    };
+    RDNSS 2001:db8:cafe:dead::1 { };
+    DNSSL localnet { };
+};
+===================================
+
+The interface name must be the name of the
+network interface on the LAN side.
+
+The prefix 2001:db8:cafe:dead::/64 must comply
+with the adress provided by your ISP
+(2001:db8:cafe) and the subnet you have assigned
+to your LAN (dead).
+You can also use Unique Link Adresses (ULA)
+instead of a valid public adress. The ULA
+correspond to the IPv4 Adresses 10.x.y.z or
+192.168.a.b and are not accessible from 
+outside.
+
+RDNSS is the IP Adress of your server on
+the LAN side and can also be a ULA
+
+DNSSL is the domain search list. In our
+example we have the domain localnet which
+is not a legal domain and will be used for
+our local name resolution.
+Please note that on systems as Ubuntu you may
+not have a correct file /etc/resolv.conf, the
+search and domain lines may not be set by the
+installed softfware. The server radvc can be
+installed on the client in order tp make shure
+that the required line will be present.
+If you have more entries on the search list
+the local domain name shall alway been at the
+first position.
+
+1.3.2) DNS Server:
+------------------
+
+1.3.2.1) named:
+---------------
+
+The file delivered by your distribution must
+be modified a little bin
+
+On the bottom of the file /etc/named.conf
+you should add the folowing:
+
+===================================
+zone "dynamic" IN {
+	type master;
+	file "dynamic.forward.zone";
+	allow-query { any; };
+	allow-update { ::1; };
+	zone-statistics yes;
+};
+===================================
+
+and create this file within the directory
+state within the option directory of the named.conf
+file.
+This file may contain:
+
+===================================
+$ORIGIN .
+$TTL 259200
+dynamic IN SOA	ns.dynamic. root.ns.dynamic. (
+        2009020774 ; serial
+        3600      ; refresh (1 hours)
+        600       ; retry (10 minutes)
+        86400     ; expire (1 day)
+        1800      ; minimum (30 min)
+)
+NS      ns.dynamic.
+$ORIGIN dynamic.
+ns      AAAA       2001:db8:cafe:dead::1
+===================================
+
+We assume that the local zone has the name
+dynamic and the name server is ns.dynamic.
+
+With this configuration your nameserver
+will always ask the top level DNS server.
+This is not alway the best so that the
+option part of the /etc/named.conf file
+shall contain a forwarding declaration to
+the name server provided by your ISP or
+and other server as for example:
+
+===================================
+    forwarders {
+        2001:4860:4860::8888; // google IPv6
+        8.8.8.8;              // google IPv4
+        192.168.0.1;          // NS on your router
+    };
+===================================
+
+You may have only one entry within the
+forwarders option. I you have more entries
+each forrwarder will be asked
+
+If the IPv6 Only systems hat to be able to
+connect to system with only IPv4 adresses
+you may want to use DNS64 / NAT 64. This
+implies that you enter one more option
+on the top of the named.conf file and install
+a NAT64 server as Tayga or the easier to configure
+ptrtd.
+If so add:
+
+===================================
+    dns64 2001:db8:cafe:beef::/96 {
+        clients { any; };
+        mapped { any; };
+    };
+===================================
+
+to the options part of the file /etc/named
+DNS64 / NAT64 require an own subnet. The
+subnet id dead for the systems within your
+LAN and the subnet for DNS64 / NAT64 is
+dead. For the case you use ptrtd you should
+symply launch:
+
+ptrtd -p 2001:db8:cafe:beef::
+
+in order to access IPv4 computer from the
+IPv6 only machines.
+
+2) Client side:
+---------------
+
+2.1) ninfod:
+------------
+
+On a Linux client, the ninfo part for the
+icmp-v6 protocol is not supported. We need
+therefor an agent which to the job.
+The daemon ninfod what created for this purpose
+and the ninfod server hast to be installed on
+the clients.
+Ninfod don't need any parameters. so it can be
+launched without any configurations stuffs.
+
+2.2) radvc:
+-----------
+
+On an Ubuntu system and probably on most
+Linux distributions, NetworkManager is used
+for configuring the nettwork. Unfortunatelly,
+the NetworkManager don't know anythings about
+DNSSL as stated within RFC 6106. Please note that
+this is also the case for other optional packahes.
+Due to this the file /etc/resolv.conf will never
+be OK and an other helpe is needed. Radvc is such
+a program. Radvc listen on the router advertisement
+issued by radvd and check if the file /etc/resolv,conf
+contain the name server adress and the search list
+declared by radvd (of course if you have configured
+this). The file radvd is checked after each 
+router advertisement message and if the wanted
+informations are not present, the file will be
+modified/recreated.
+
+Radvc don't fullfill all requirement of RFC 6106
+but is good enough for the private home network.
+
+Radvc don't require any parameters and can always be
+launched at boot time.
+

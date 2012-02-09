@@ -85,7 +85,17 @@ static int build_niquery(uint8_t *buf, struct in6_addr *addr,  int ni_query_code
     nih->ni_code = NI_SUBJ_IPV6;
     nih->ni_cksum = 0;
     nih->ni_qtype = htons(ni_query_code);
-    nih->ni_flags = ni_query_code==NI_QTYPE_IPV6ADDR?(NI_IPV6ADDR_F_GLOBAL):0;
+    switch(ni_query_code)
+    {
+        case NI_QTYPE_IPV6ADDR:
+            nih->ni_flags = NI_IPV6ADDR_F_GLOBAL;
+        break;
+        case NI_QTYPE_IPV4ADDR:
+            nih->ni_flags = 0;
+        break;
+        default:
+            nih->ni_flags = 0;
+    }
     for (i = 0; i < 8; i++)
         nih->ni_nonce[i] = rand();
     cc = sizeof(*nih);
@@ -103,6 +113,13 @@ int query_addr(int sock, uint8_t *buf, struct in6_addr *addr)
 {
     int cc;
     cc = build_niquery(buf, addr, NI_QTYPE_IPV6ADDR);
+    return send_probe(sock, buf, addr, cc, 0);
+}
+
+int query_ipv4(int sock, uint8_t *buf, struct in6_addr *addr)
+{
+    int cc;
+    cc = build_niquery(buf, addr, NI_QTYPE_IPV4ADDR);
     return send_probe(sock, buf, addr, cc, 0);
 }
 

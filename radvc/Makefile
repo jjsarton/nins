@@ -22,7 +22,7 @@ install-man: /usr/share/man/man8/
 	@gzip -c radvc.8 > /usr/share/man/man8/radvc.8.gz
 
 install-start:
-	@if [ -e /lib/systemd/system/ ]; then \
+	@if [ -e /lib/systemd/system/ -a -e /bin/systemctl ]; then \
 	        make install-systemd;\
 	else \
 	        make install-init;\
@@ -51,7 +51,7 @@ uninstall-man: /usr/share/man/man8/radvc.8.gz
 	@+rm -f /usr/share/man/man8/radvc.8.gz
 
 uninstall-start:
-	@if [ -e /lib/systemd/system/ ]; then \
+	@if [ -e /lib/systemd/system/ -a -e /bin/systemctl ]; then \
 	        make uninstall-systemd;\
 	else \
 	        make uninstall-init;\

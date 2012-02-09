@@ -16,7 +16,7 @@
 ninsd \- allow DDNS update of a name server as named.
 .SH SYNOPSIS
 .B ninsd
-.B "[ \-f ] [ \-v ] [ \-t ttl_max ] [ \-i interface] [ \-s updater]"
+.B "[ \-f ] [ \-v ] [ \-t ttl_max ] [ \-i interface] [ \-s updater] [ \-4 \| -m map_file ]"
 
 .SH DESCRIPTION
 .B ninsd
@@ -98,14 +98,31 @@ server, you may call a utility (script or binary) wich will
 interpret the nsupdate commands and update for example the
 file /etc/hosts.
 
+.TP
+.BR "\-i"
+If you pass this option
+.B ninsd
+will ask the clients for there IPv4 adress and update
+the name server.
+
+.TP
+.BR "\-m map_file"
+If you have DNS64 and a working
+.B tayga
+NAT64 server you will be able to access IPv6 systems from
+IPv4 only device if you known the mapped adress of if this
+IPv4 adress is known by the name server. With this option
+ninsd read the named file (normally /var/db/tayga/dynamic.map)
+and update the name server. You must pass the whole path.
+
 .SH FILES
 
 .nf
-/usr/sbin/ninsdd
+/usr/sbin/ninsd
 .fi
 .SH BUGS
 
-There certainly are some bugs. If you find them or have other
+There are certainly some bugs. If you find them or have other
 suggestions please contact the author.
 
 .SH "SEE ALSO"

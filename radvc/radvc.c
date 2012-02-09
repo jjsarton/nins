@@ -34,7 +34,7 @@
  */
  
 static char *resolv_conf = "/etc/resolv.conf";
-static char domain[256];
+static char domain[4096];
 static char ns_server[256];
 static time_t resolv_time = 0;
 static off_t  resolv_size = 0;
@@ -169,6 +169,43 @@ static int mod_resolv_conf(char *resolv_conf, char *domain, char *ns_server)
     return 1;
 }
 
+static int build_search_list(ra_xxx_head_t *hd)
+{
+    *domain = '\0';
+    int length = hd->length << 3;
+    uint8_t *s = (uint8_t*) hd  + sizeof(ra_xxx_head_t);
+    int c;
+    uint8_t l;
+    char *t = domain;
+    *t = '\0';
+
+    for ( c = 0; c < length && *s ; )
+    {
+        /* first byte is number of chars */
+        l = *s;
+        s++;
+        c++;
+        strncpy((char*)t, (char*)s,l);
+        s += l;
+        c += l;
+        t += l;
+
+        if ( *s )
+        { 
+            *t++ = '.';
+            c++;
+        }
+        else if ( s[1] )
+        {
+            *t++ = ' ';
+            c++;
+            s++;
+        }
+        *t = '\0';
+    }
+    return 1;
+}
+
 static int decode_router_advertisement(struct icmp6_hdr *icmph, int len)
 {
     uint8_t *list;
@@ -185,23 +222,8 @@ static int decode_router_advertisement(struct icmp6_hdr *icmph, int len)
                 list = data + sizeof(ra_xxx_head_t);
                 inet_ntop(AF_INET6, list, ns_server, sizeof(ns_server));
             break;
-            case ND_OPT_DNSSL_INFORMATION:                
-                list = data + sizeof(ra_xxx_head_t);
-                *domain = '\0';
-                uint8_t l;
-                char *t = domain;
-                while( (l = *list) )
-                {
-                    list++;
-                    strncpy(t, (char*)list, l);
-                    list += l;
-                    t += l;
-                    if ( *list )
-                    {
-                        *t++ = '.';
-                    }
-                    *t = '\0';
-                }
+            case ND_OPT_DNSSL_INFORMATION:
+                build_search_list((ra_xxx_head_t*)data);
             break;
         }
         data += opt_hdr->nd_opt_len * 8;
@@ -275,8 +297,8 @@ static int mainloop(int sock)
             msg.msg_namelen = sizeof(addrbuf);
             msg.msg_iov = &iov;
             msg.msg_iovlen = 1;
-            msg.msg_control = ans_data;
-            msg.msg_controllen = sizeof(ans_data);
+            msg.msg_control = NULL;//ans_data;
+            msg.msg_controllen = 0;//sizeof(ans_data);
             cc = recvmsg(sock, &msg, polling);
             if (cc > 8)
             {
@@ -285,7 +307,7 @@ static int mainloop(int sock)
         }
         else if ( *domain && *ns_server)
         {
-            mod_resolv_conf(resolv_conf, domain,  ns_server);
+            mod_resolv_conf(resolv_conf, domain, ns_server);
         }
     }
     return 0;

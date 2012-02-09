@@ -43,8 +43,8 @@ static uint8_t outpack[MAXPACKET];
 static char domain[NAME_SIZE_MAX];
 static int ttl = 0;
 static struct in6_addr own_addr;
-static int local = 0;
-
+static char *map_file = NULL; /* NAT46 Mapping */
+static int get_ipv4 = 0;
 
 static char *print_addr(struct in6_addr *addr)
 {
@@ -53,12 +53,51 @@ static char *print_addr(struct in6_addr *addr)
     return str;
 }
 
+static char *print_addr4(struct in_addr *addr)
+{
+    static char str[128];
+    inet_ntop(AF_INET, addr, str, sizeof(str));
+    return str;
+}
+void get_dynamic_ipv4(node_info_t *ni, char *map_file)
+{
+    FILE *fp;
+    char gladdr[128];
+    char line[1024];
+
+    inet_ntop(AF_INET6, &ni->global, gladdr, sizeof(gladdr));
+
+    if ( (fp = fopen(map_file,"r")) )
+    {
+        while (fgets(line,sizeof(line),fp) )
+        {
+           if ( *line == '#' ) continue;
+           char ip4[1024];
+           char ip6[1024];
+           char rest[1024];
+           sscanf(line,"%s\t%s\t%s\n",ip4,ip6,rest);
+           if ( strcmp(ip6, gladdr) == 0 )
+           {
+               struct in_addr ipv4;
+               inet_pton(AF_INET, ip4, &ipv4);
+               node_info_add_ipv4(&ni->local, &ipv4, ttl, domain, updater);
+               break;
+           }
+        }
+        fclose(fp);
+    }
+}
+
 int parse_reply(struct msghdr *msg, int cc, void *addr)
 {
     struct sockaddr_in6 *from = addr;
     uint8_t *buf = msg->msg_iov->iov_base;
     struct cmsghdr *c;
     struct icmp6_hdr *icmph;
+
+    /* don't process if this is not frm a link local address */
+    if ( !IN6_IS_ADDR_LINKLOCAL(&from->sin6_addr) )
+        return 0;
 
     for (c = CMSG_FIRSTHDR(msg); c; c = CMSG_NXTHDR(msg, c)) {
         if (c->cmsg_level != SOL_IPV6)
@@ -127,6 +166,20 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                         printf("\n");
                     }
                 break;
+                case NI_QTYPE_IPV4ADDR:
+                    len = cc - sizeof(struct ni_hdr) + 4;
+                    if ( len > 7 && get_ipv4 )
+                    {
+                        uint8_t *data = (uint8_t *)nih + sizeof(struct ni_hdr) + 4; // ttl len = 4;
+                        nl = data[0];
+                        printf("Addr %s\n",print_addr4((struct in_addr*)data));
+                        node_info_add_ipv4(&from->sin6_addr,(struct in_addr*)data, ttl, domain, updater);
+                    }
+                    else
+                    {
+                        printf("\n");
+                    }
+                break;
                 default:
                     printf("Other NI_QTYPE\n");
             }
@@ -134,7 +187,6 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
         case ND_ROUTER_SOLICIT:
             printf("got ND_ROUTER_SOLICIT from %s\n", print_addr(&from->sin6_addr));
             node_info_add_elem(&from->sin6_addr);
-        break;
         break;
         case ND_ROUTER_ADVERT:
             printf("got ND_ROUTER_ADVERT from %s\n", print_addr(&from->sin6_addr));
@@ -166,15 +218,35 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
 
 void complete_info(int sock, uint8_t *outpack,int ttl)
 {
-    node_info_t *ni = search_incomplete(ttl, domain, updater);
+    int flag = get_ipv4 ? 1: map_file ? 1 : 0;
+    node_info_t *ni = search_incomplete(ttl, domain, updater, flag );
     if ( ni )
     {
         if (!(ni->flag&NODE_INFO_NAME))
             query_name(sock, outpack, &ni->local);
+
         if ( !(ni->flag&NODE_INFO_GLOB))
+        {
             query_addr(sock, outpack, &ni->local);
+        }
+
+        if ( map_file && ni->flag&NODE_INFO_GLOB )
+        {
+            get_dynamic_ipv4(ni, map_file);
+        }
+        else if ( get_ipv4  && ni->flag&NODE_INFO_GLOB )
+             query_ipv4(sock, outpack, &ni->local);
+
         if ( (ni->flag&NODE_INFO_CHECK) == NODE_INFO_CHECK)
+        {
             query_addr(sock, outpack, &ni->local);
+            if ( map_file )
+            {
+                get_dynamic_ipv4(ni, map_file);
+            }
+            else if ( get_ipv4 )
+                query_ipv4(sock, outpack, &ni->local);
+        }
     }
 }
 
@@ -246,7 +318,7 @@ char *prgName = NULL;
 
 static void usage(char *me)
 {
-    fprintf(stderr,"Usage %s -i interface [-v] [-f] [-t ttl_max] [-s updater]\n",me);
+    fprintf(stderr,"Usage %s -i interface [-v] [-f] [-t ttl_max] [-s updater] [-4] [-m map_file]\n",me);
     abort();
 }
 
@@ -262,7 +334,11 @@ int main(int argc, char **argv)
     if ( prgName && (prgName=strrchr(prgName,'/')) )
         prgName++;
 
+#if 0
     while( (c = getopt(argc, argv, "i:vft:s:l")) > 0)
+#else
+    while( (c = getopt(argc, argv, "i:vft:s:m:4")) > 0)
+#endif
     {
         switch(c)
         {
@@ -276,6 +352,9 @@ int main(int argc, char **argv)
             case 'f':
                 foreground=1;
             break;
+            case '4':
+                get_ipv4=1;
+            break;
             case 't':
                 t = atoi(optarg);
                 if ( t > 0 )
@@ -284,10 +363,8 @@ int main(int argc, char **argv)
             case 's':
                 updater = optarg;
             break;
-            case 'l':
-                local = 1; /* mode for local use withoiut name server
-                            * file /etc/hosts will be modified localy
-                            */
+            case 'm':
+                map_file = optarg;
             break;
             default:
                 usage(prgName);
