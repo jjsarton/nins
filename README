@@ -8,7 +8,7 @@ the cleinets can be adressed by name.
 
 Ninsd is to be installed on the same machine as the
 name server and on the clients you must install
-ninfod (https://github.com/yaegashi-ninfod)
+ninfod (https://github.com/yaegashi/ninfod)
 
 
 radvc
