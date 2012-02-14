@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <ctype.h>
+#include <time.h>
 
 #include <sys/time.h>
 #include <string.h>
@@ -19,8 +21,6 @@
 #include "list.h"
 #include "storage.h"
 
-#define NEW_NSUPD
-
 extern char *print_addr(struct in6_addr *addr);
 
 static list_t *root = NULL;
@@ -29,12 +29,8 @@ static node_info_t *create_element(void);
 static int cpm_local_addr(const list_t *a, const void *b);
 static int cpm_global_addr(const list_t *a, const void *b);
 static int cpm_name(const list_t *a, const void *b);
-#ifdef NEW_NSUPD
 static void call_nsupdate(node_info_t *ni, int ttl, char *domain, char *updater);
-#else
-static void call_nsupdate(struct in6_addr *addr, char *name, int ttl, char *domain, char *updater);
-#endif
-static void update_ns(int ttl, char *domain, char *updater);
+static void update_ns(int ttl, int del, char *domain, char *updater);
 
 static node_info_t *create_element(void)
 {
@@ -142,7 +138,7 @@ int node_info_add_elem(struct in6_addr* addr )
         ni = create_element();
         if ( ni )
         {
-            gettimeofday(&ni->last_seen, NULL);
+            ni->last_seen = time(NULL);
             memcpy(&ni->local, addr,sizeof(struct in6_addr));
             list_insert(&root, ni);
         }
@@ -150,7 +146,7 @@ int node_info_add_elem(struct in6_addr* addr )
     else
     {
         ni = (node_info_t*)elem->data;
-        gettimeofday(&ni->last_seen, NULL);
+        ni->last_seen = time(NULL);
     }
     return 1;
 }
@@ -169,24 +165,20 @@ int node_info_add_global(struct in6_addr* local, struct in6_addr* global, int tt
     {
         ni = (node_info_t*)elem->data;
         memcpy(&ni->global, global, sizeof(*global));
-        gettimeofday(&ni->last_seen, NULL);
+        ni->last_seen = time(NULL);
         ni->flag |= NODE_INFO_GLOB;
         if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL)
         {
-#ifdef NEW_NSUPD
             call_nsupdate(ni, ttl, domain, updater);
-#else
-            call_nsupdate(&ni->global, ni->name, ttl, domain, updater);
-#endif
             ni->flag |= NODE_INFO_ALL;
         }
+        ni->flag = ni->flag & ~ NODE_INFO_CHECK;
     }
     return 1;
 }
 
 int node_info_add_ipv4(struct in6_addr* local, struct in_addr* ipv4, int ttl, char *domain, char *updater)
 {
-printf("node_info_add_ipv4\n");
     list_t *elem;
     node_info_t *ni;
     /* may be we get 127.0.0.1, don't allows this */
@@ -199,19 +191,66 @@ printf("node_info_add_ipv4\n");
     {
         ni = (node_info_t*)elem->data;
         memcpy(&ni->ipv4, ipv4, sizeof(*ipv4));
-        gettimeofday(&ni->last_seen, NULL);
-        ni->flag |= NODE_HAS_IPV4;
-        if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL)
+        ni->last_seen = time(NULL);
+        if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL && !(ni->flag & NODE_HAS_IPV4))
         {
-#ifdef NEW_NSUPD
-            call_nsupdate(ni, ttl, domain, updater);
-#else
-            call_nsupdate4(&ni->ipv4, ni->name, ttl, domain, updater);
-#endif
             ni->flag |= NODE_HAS_IPV4;
+            call_nsupdate(ni, ttl, domain, updater);
         }
     }
     return 1;
+}
+
+static void get_suffix(char *name, char *suffix)
+{
+    int len = strlen(name);
+    char letters[26];
+    char host_name[256];
+    list_t *list = root;
+    node_info_t *elem;
+    int cmp;
+
+    memset(letters, 0, sizeof(letters));
+    if ( gethostname(host_name, sizeof(host_name)) == 0 )
+    {
+       cmp = strncmp(host_name, name, len);
+       if ( cmp == 0 || (cmp && (host_name[len] == '.')) )
+       {
+          *suffix='-';
+       }
+    }
+
+    /* look for assigned suffixes */
+    while (list)
+    {
+        elem = (node_info_t*)list->data;
+        if ( *elem->name )
+        {
+           cmp = strncmp(elem->name, name, len);
+           if ( cmp == 0 || (cmp && (elem->name[len] == '.' || elem->name[len] == '-')) )
+           {
+              *suffix='-';
+              if ( elem->name[len+1] && elem->name[len+2] && !elem->name[len+3] )
+              {
+                 letters[tolower(elem->name[len+2])-'a'] = '1';
+              }
+           }
+        }
+        list = list->next;
+    }
+
+    /* take the first not used suffix */
+    if ( *suffix )
+    {
+        for ( cmp = 0; cmp < sizeof(letters); cmp++ )
+        {
+            if (letters[cmp] == '\0' )
+            {
+                suffix[1] = cmp+ + 'a';
+                break;
+            }
+        }
+    }
 }
 
 int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl, char *updater)
@@ -229,70 +268,88 @@ int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl
     if ( elem )
     {
         ni = (node_info_t*)elem->data;
-        strncpy(ni->name, name, NAME_SIZE_MAX-dlen);
-        if ( domain )
+        if ( !*ni->name )
         {
-            strcat(ni->name,".");
-            strcat(ni->name,domain);
+            if ( domain )
+            {
+                char suffix[3];
+                memset(suffix, 0, sizeof(suffix));
+                get_suffix(name, suffix);
+                strncpy(ni->name, name, NAME_SIZE_MAX-dlen);
+                if ( *suffix )
+                   strcat(ni->name,suffix);
+                strcat(ni->name,".");
+                strcat(ni->name,domain);
+            }
         }
         ni->flag |= NODE_INFO_NAME;
-        gettimeofday(&ni->last_seen,NULL);
+        ni->last_seen = time(NULL);
         if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL)
         {
-#ifdef NEW_NSUPD
             call_nsupdate(ni, ttl, domain, updater);
-#else
-            call_nsupdate(&ni->global, ni->name, ttl, domain, updater);
-#endif
             ni->flag = NODE_INFO_ALL;
         }
+        ni->flag = ni->flag & ~NODE_INFO_CHECK;
     }
     return 1;
 }
 
 node_info_t *search_incomplete(int ttl, char *domain, char *updater, int get_ipv4)
 {
-    struct timeval  act_time;
+    time_t act_time;
     list_t *elem = root;
     node_info_t *ret = NULL;
-    gettimeofday(&act_time, NULL);
+    act_time = time(NULL);
+    int del = 0;
     while(elem)
     {
         node_info_t *ni = (node_info_t *)elem->data;
-        if ( ni->last_seen.tv_sec < act_time.tv_sec+1 )
+        if ( ni->last_seen < act_time )
         {
             if ( ((ni->flag & NODE_INFO_GLOB) != NODE_INFO_GLOB) || (get_ipv4 && !(ni->flag & NODE_HAS_IPV4)) )
             {
-                if ( ni->last_seen.tv_sec+3 < act_time.tv_sec )
+                if ( ni->last_seen+5 < act_time )
                 {
                     list_remove(&root, elem);
                     free(ni);
-                    break; // entry must be removed
+                    break; // entry must be removed no node_info ?
                 }
                 ret = ni; // call get addr from main loop
                 break;
             }
-            if ( act_time.tv_sec > ni->last_seen.tv_sec + ttl && !(ni->flag&NODE_INFO_CHECK) )
+
+            if ( act_time > ni->last_seen + ttl - 1  && !(ni->flag&NODE_INFO_CHECK) )
             {
+                /* check if the node is alive */
                 ni->flag |= NODE_INFO_CHECK;
-                gettimeofday(&ni->last_seen, NULL);
+                ni->last_seen = time(NULL);
                 ret = ni; // check for availibility
                 break;
             }
         }
+
+        if ( ni->flag&NODE_INFO_CHECK && ni->last_seen + 3 > act_time )
+        {
+            /* if we have not got an answer for this node,
+             * the node is no more available
+             */
+            ni->last_seen = 0;
+            del = 1;
+            break;
+        }
         elem = elem->next;
     }
-    update_ns(0, domain, updater);
+    update_ns(ttl, del, domain, updater);
     return ret;
 }
 
-#ifdef NEW_NSUPD
 static void call_nsupdate(node_info_t *info, int ttl, char *domain, char *updater)
 {
     char str[256];
     FILE *p = popen(updater, "w");
     if ( p )
     {
+        printf("Update DNS Time %lu\n",time(NULL));
         printf("server ::1\n");
         printf("zone %s.\n",domain);
         printf("update delete %s AAAA\n", info->name);
@@ -331,15 +388,19 @@ static void call_nsupdate(node_info_t *info, int ttl, char *domain, char *update
     }
 
 }
-void update_ns(int ttl, char *domain, char *updater)
+
+void update_ns(int ttl, int del, char *domain, char *updater)
 {
-    struct timeval  act_time;
+    time_t act_time = time(NULL);
     list_t *elem = root;
-    gettimeofday(&act_time, NULL);
+
     while(elem)
     {
         node_info_t *ni = (node_info_t *)elem->data;
-        if ( ni->last_seen.tv_sec + ttl < act_time.tv_sec )
+        /* add a little grace time (2 sec.) in order to avoid
+         * premature deletion.
+         */
+        if ( del && ni->last_seen + ttl < act_time )
         {
             if ((ni->flag & NODE_INFO_CHECK) == NODE_INFO_CHECK )
             {
@@ -367,65 +428,3 @@ void delete_all_clients(char *domain, char *updater)
         elem = root;
     }
 }
-#else
-
-static void call_nsupdate(struct in6_addr *addr, char *name, int ttl, char *domain, char *updater)
-{
-    char str[256];
-    inet_ntop(AF_INET6, addr, str, sizeof(str));
-    FILE *p = popen(updater, "w");
-    if ( p )
-    {
-        printf("server ::1\n");
-        printf("zone %s.\n",domain);
-        printf("update delete %s AAAA\n", name);
-        if ( ttl > 0 )
-            printf("update add %s %d AAAA %s\n", name, ttl, str);
-
-        fprintf(p,"server ::1\n");
-        fprintf(p,"update delete %s AAAA %s\n", name, str);
-        if ( ttl > 0 )
-            fprintf(p,"update add %s %d AAAA %s\n", name, ttl, str);
-        fprintf(p,"send\n");
-        pclose(p);
-    }
-}
-
-
-void update_ns(int ttl, char *domain, char *updater)
-{
-    struct timeval  act_time;
-    list_t *elem = root;
-    gettimeofday(&act_time, NULL);
-    while(elem)
-    {
-        node_info_t *ni = (node_info_t *)elem->data;
-        if ( ni->last_seen.tv_sec + ttl < act_time.tv_sec )
-        {
-            if ((ni->flag & NODE_INFO_CHECK) == NODE_INFO_CHECK )
-            {
-                /* call nsupdate  for remove */
-                call_nsupdate(&ni->global, ni->name,0, domain, updater);
-                list_remove(&root, elem);
-                free(ni);
-                break;
-            }
-        }
-        elem = elem->next;
-    }
-}
-
-void delete_all_clients(char *domain, char *updater)
-{
-    node_info_t *ni;
-    list_t *elem = root;
-    while (elem)
-    {
-        ni = (node_info_t *)elem->data;
-        call_nsupdate(&ni->global, ni->name,0, domain, updater);
-        list_remove(&root, elem);
-        free(ni);
-        elem = root;
-    }
-}
-#endif

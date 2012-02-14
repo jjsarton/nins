@@ -21,42 +21,43 @@
 <body>
 	<div id="wrapper">
 		<h1>Ninsd an utility for DDNS with IPv6</h1>
-		
-		<h2>IPv6 radvd/dhcpd v6</h2>
+		<h2>Client IP Adress assignement and routing</h2>
+		<h3>IPv6 radvd/dhcpd v6</h3>
 		<p>
 			In order to provide routing information to the system within
 			the LAN, the daemon <strong>radvd</strong> must be launched.
-			With radvd the connected system can auto configure themselves
+			With <strong>radvd</strong> the connected system can auto configure themselves
 			(stateless mode) and a valid IPv6 Address based on the
 			Mac Address of the interface or a temporary address which
 			help to provide anonymity is generated. 
 		</p>
 		<p>
-			The IPv6 Address can also be assigned by the dhcpd server.
+			The IPv6 Address can also be assigned by the <strong>dhcpd</strong> server.
 			For this cases we don't need the radvd server. The routing
-			information shall be provided by the DHCP system.
+			information must also be provided by the DHCP system.
 		</p>
+		<h2>Name resolution</h2>
 		<p>
 			If we have two system within the LAN (alice and bob)
 			which offer different services we must use a name server
 			which know the systems and therefore we need fixed addresses
             and an entry within the name service configuration.			
 		</p>
+		<h3>The DHCPv6 server</h3>
 		<p>
 			The DHCPv6 server don't presently allow to update the
 			name server with the information about the attached systems.
-			We will also not be able, for example, to display a web page
+			We will not be able, for example, to display a web page
 			offered by alice by typing the URL http://alice.example.com
 			on the bob system. We must enter a complicated IPv6 address
 			in order to do this.
 		</p>
-		<h2>Name resolution</h2>
 		<h3>The avahi discovery system</h3>
 		<p>
-			On linux based system the avahi components allow ro publish
+			On linux based system the avahi components allows to publish
 			informations about the different services offered by the
 			system. Avahi provide also a multicast DNS service which
-			should allow to address the different systems on the LAN
+			should allows to address the different systems on the LAN
 			with there name e.g. alice.local or bob.local.
 		</p>
 		<p>
@@ -65,7 +66,7 @@
 			library mdns are not OK or not available. Due to this
 			avahi don't solve the DNS problem.
 		</p>
-		<h3>An icmp-v6 based approach</h3>
+		<h2>An icmp-v6 based approach</h2>
 		<p>
 			The system on the LAN communicate always via the Internet
 			Control Message Protocol v6 in order to exchange information
@@ -78,7 +79,7 @@
 			Unfortunately this is not implemented within the Linux
 			kernel.
 		</p>
-		<h4>The ninfod daemon</h4>
+		<h3>The ninfod daemon</h3>
 		<p>
 			The requirements stated within rfc 4620 are fullfilled
 			by the daemon ninfod. The only binary which allows
@@ -95,7 +96,7 @@
 			listen for icmp-v6 message and if some messages are
 			detected to query the wanted information.
 		</p>
-		<h2>ninsd</h2>
+		<h3>ninsd</h3>
 		<p>
 			Ninsd (None Information Name Server Daemon) is such a daemon which
 			listen on the router advertisement messages and if a new
@@ -118,24 +119,71 @@
 			</ol>
 		</p>
 		<p>
-			The second approach what choose, this implies that the
+			The second approach what choosed, this implies that the
 			name server and ninsd are running on the same machine. The
 			server address is "::1" so that we will not have troubles
 			if an update come from global addresses.
 		</p>
-		<h2>NetworkManager and /etc/resolv.conf</h2>
+		<h3>NetworkManager and /etc/resolv.conf</h3>
 		<p>
 			The NetworkManager (at least on the Ubuntu 11.04 used for
 			tests) don't update the file resolv.conf if the network
 			what plugged out and the in. Due to this the file resolv.conf
 			don't contain valid informations.
 		</p>
+		<h3>Rdnssd</h3>
 		<p>
-			The radvc daemon what created in order to remedy to this.
+			The actual version of rdnssd don't taken into account the
+			domain search list which can be provided by <strong>radvd</strong>.
+		</p>
+		<h3>Radvc</h3>
+		<p>
+			The <strong>radvc</strong> daemon what created in order to remedy to this.
 			In case the connection is lost, the kernel will send some
 			messages to the radvd daemon which will send an router
 			advertissement message. This message contain enough informations
 			in order to build the file /etc/resolv.conf. 
+		</p>
+		<p>
+			Please note that <strong>rdnssd</strong> will be able to update
+			the domain search list for in the future (at this time we have
+			the version 1.0.2) and therefore will obsolete <strong>radvc</strong>.
+		</p>
+		<h2>Features</h2>
+		<p>
+			Ninsd make some assumptions which will not be a problem within
+			a normal home environment but may cause problems in corporate
+			deployement.
+			<ul>
+				<li>
+					The domain for DDNS must be the first domain stated into
+					the radvd search list
+				</li>
+				<li>
+					Multiple global IPv6 adresses are not supported.
+				</li>
+				<li>
+					The name of the clients shall be unique within the network
+					but if there a are not unique the DNS name will be 
+					append by -[a-z].
+				</li>
+			</ul>
+		</p>
+		<p>
+			For the use within your small office or at home you will benefit
+			from:
+			<ul>
+				<li>Support for name server which work with nsupdate.</li>
+				<li>Support for other name server via scripting.</li>
+				<li>Support for DNS64/NAT64 with tayga.</li>
+				<li>Access from IPv6/IPv4 to IPv4/IPv6 devices, if tayga
+				   is installed.</li>
+			</ul>
+			<ul>
+				<li>Clients don't need special configuration, only 2 little
+				    utilities has to be installed.
+				</li>
+			</ul>
 		</p>
 	</div>
 </body>

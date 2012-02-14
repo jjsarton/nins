@@ -64,7 +64,6 @@ void get_dynamic_ipv4(node_info_t *ni, char *map_file)
     FILE *fp;
     char gladdr[128];
     char line[1024];
-
     inet_ntop(AF_INET6, &ni->global, gladdr, sizeof(gladdr));
 
     if ( (fp = fopen(map_file,"r")) )
@@ -202,12 +201,16 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                 ttl = ttl_max;
             }
         break;
+
         case ND_NEIGHBOR_ADVERT:
+            /* ignore this */
+#if 0
             printf("got ND_NEIGHBOR_ADVERT from %s\n", print_addr(&from->sin6_addr));
             if ( memcmp(&own_addr, &from->sin6_addr, sizeof(own_addr)) )
             {
                 node_info_add_elem(&from->sin6_addr);
             }
+#endif
             break;
         default:
             printf("Received type %d\n",icmph->icmp6_type);
@@ -219,7 +222,8 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
 void complete_info(int sock, uint8_t *outpack,int ttl)
 {
     int flag = get_ipv4 ? 1: map_file ? 1 : 0;
-    node_info_t *ni = search_incomplete(ttl, domain, updater, flag );
+
+    node_info_t *ni = search_incomplete(ttl, domain, updater, flag);
     if ( ni )
     {
         if (!(ni->flag&NODE_INFO_NAME))
@@ -240,6 +244,7 @@ void complete_info(int sock, uint8_t *outpack,int ttl)
         if ( (ni->flag&NODE_INFO_CHECK) == NODE_INFO_CHECK)
         {
             query_addr(sock, outpack, &ni->local);
+
             if ( map_file )
             {
                 get_dynamic_ipv4(ni, map_file);
@@ -334,11 +339,7 @@ int main(int argc, char **argv)
     if ( prgName && (prgName=strrchr(prgName,'/')) )
         prgName++;
 
-#if 0
-    while( (c = getopt(argc, argv, "i:vft:s:l")) > 0)
-#else
     while( (c = getopt(argc, argv, "i:vft:s:m:4")) > 0)
-#endif
     {
         switch(c)
         {

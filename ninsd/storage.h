@@ -15,7 +15,7 @@ extern "C" {
 
 typedef struct node_info_s {
     int             flag;
-    struct timeval  last_seen;
+    time_t          last_seen;
     struct in6_addr local;
     char            name[NAME_SIZE_MAX+1];
     struct in6_addr global;
