@@ -10,6 +10,8 @@
 #include <ctype.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <signal.h>
 
 #include <sys/ioctl.h>
 #include <netdb.h>
@@ -35,6 +37,48 @@
 /* check at last every 10 minute for life */
 #define TTL_MAX 600
 
+#define PID_DIR "/var/run/"
+
+#ifndef __linux__
+#define daemon(a,b) m_daemon(a,b)
+static int m_daemon(int nochdir, int noclose)
+{
+    pid_t pid ,sid; 
+    pid = fork(); 
+    if (pid < 0)
+    {
+        return -1; /* error */
+    } 
+    if (pid > 0) /* parent */
+    {
+        exit(0);
+    } 
+    /* child process */
+ 
+    umask(0);
+    sid = setsid();
+    if (sid < 0) 
+    {
+         return -1;
+    }
+    
+    if ( !noclose )
+    {
+        close(STDIN_FILENO);
+        close(STDOUT_FILENO);
+        close(STDERR_FILENO);
+    }
+
+    if ( !nochdir )
+    {
+        chdir("/");
+        close(STDOUT_FILENO);
+    }
+    
+    return 0;
+}
+#endif
+
 static int ttl_max = TTL_MAX;
 static int sock = -1;
 static char *updater = "nsupdate";
@@ -45,6 +89,40 @@ static int ttl = 0;
 static struct in6_addr own_addr;
 static char *map_file = NULL; /* NAT46 Mapping */
 static int get_ipv4 = 0;
+
+char *pid_file = NULL;
+
+static void sig_handler(int sig)
+{
+    int err;
+    err = unlink(pid_file);
+    if (err < 0)
+    {
+         perror("unlink");
+         exit(1);
+    }
+    exit(0);
+}
+
+static void set_signals(void)
+{
+    struct sigaction act;
+    sigset_t smask;
+    sigemptyset(&smask);
+    sigaddset(&smask, SIGHUP);
+    sigaddset(&smask, SIGINT);
+    sigaddset(&smask, SIGQUIT);
+    sigaddset(&smask, SIGTERM);
+
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = sig_handler;
+    act.sa_mask = smask;
+
+    sigaction(SIGHUP, &act, NULL);
+    sigaction(SIGINT, &act, NULL);
+    sigaction(SIGQUIT, &act, NULL);
+    sigaction(SIGTERM, &act, NULL);
+} 
 
 static char *print_addr(struct in6_addr *addr)
 {
@@ -59,6 +137,7 @@ static char *print_addr4(struct in_addr *addr)
     inet_ntop(AF_INET, addr, str, sizeof(str));
     return str;
 }
+
 void get_dynamic_ipv4(node_info_t *ni, char *map_file)
 {
     FILE *fp;
@@ -334,12 +413,13 @@ int main(int argc, char **argv)
     int c;
     int foreground = 0;
     int t;
+    pid_t pid;
 
     prgName = argv[0];
     if ( prgName && (prgName=strrchr(prgName,'/')) )
         prgName++;
 
-    while( (c = getopt(argc, argv, "i:vft:s:m:4")) > 0)
+    while( (c = getopt(argc, argv, "i:vft:s:m:4p:")) > 0)
     {
         switch(c)
         {
@@ -367,6 +447,9 @@ int main(int argc, char **argv)
             case 'm':
                 map_file = optarg;
             break;
+            case 'p':
+                pid_file = optarg;
+            break;
             default:
                 usage(prgName);
             break;
@@ -378,7 +461,34 @@ int main(int argc, char **argv)
         usage(prgName);
     }
 
+    if ( !pid_file )
+    {
+        pid_file = calloc(strlen(PID_DIR)+strlen(prgName)+1,1);
+	if ( pid_file == NULL )
+	{
+	     perror("calloc");
+	     exit(1);
+	}
+	strcpy(pid_file, PID_DIR);
+	strcat(pid_file, prgName);
+    }
+
+
     memset(&own_addr,0,sizeof(own_addr));
+    
+    sock = icmp_socket(device, &own_addr);
+
+    if ( sock < 0 )
+    {
+        return 1;
+    }
+
+    /* check for pid file */
+    if ( access(pid_file,R_OK) == 0 )
+    {
+         fprintf(stderr,"%s: error %s exist\n",prgName,pid_file);
+	 exit(1);
+    }
 
     if ( ! foreground )
     {
@@ -389,13 +499,21 @@ int main(int argc, char **argv)
         }
     }
 
-    sock = icmp_socket(device, &own_addr);
-
-    if ( sock < 0 )
+    /* set signal handler and create pid file */
+    set_signals();
+    pid = getpid();
+    FILE *pidf = fopen(pid_file,"w");
+    if ( pidf > 0 )
     {
-        return 1;
+        fprintf(pidf,"%d\n",pid);
+	fclose(pidf);
     }
-
+    else
+    {
+        perror("fopen");
+	exit(1);
+    }
+    
     mainloop(sock, outpack, packlen);
     return 0;
 }

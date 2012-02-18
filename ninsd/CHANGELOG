@@ -1,3 +1,6 @@
+2012 february 18 Version 0.4
+- Added pid file option and signal handling
+
 2012 February 14 Version 0.3
 - Added detection of duplicate name.
 - Added option IPv4 update from dynamic. map file (tayga)

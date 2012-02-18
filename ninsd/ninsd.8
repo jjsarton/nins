@@ -16,7 +16,7 @@
 ninsd \- allow DDNS update of a name server as named.
 .SH SYNOPSIS
 .B ninsd
-.B "[ \-f ] [ \-v ] [ \-t ttl_max ] [ \-i interface] [ \-s updater] [ \-4 \| -m map_file ]"
+.B "[ \-f ] [ \-v ] [ \-t ttl_max ] [ \-i interface] [ \-s updater] [ \-4 \| -m map_file ] [ \-p pid_file ]"
 
 .SH DESCRIPTION
 .B ninsd
@@ -115,6 +115,15 @@ IPv4 adress is known by the name server. With this option
 ninsd read the named file (normally /var/db/tayga/dynamic.map)
 and update the name server. You must pass the whole path.
 
+.TP
+.BR "\-p pid_file"
+A PID file is always created and
+.B ninsd
+will not start if the pid file (default /var/run/ninsd) is present.
+If you want to run multiple instance of ninsd you can pass the
+path and name for the pid file or create a link to ninsd and
+launch ninsd via the link name.
+ 
 .SH FILES
 
 .nf

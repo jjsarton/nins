@@ -1,1 +1,1 @@
-static char *version = "0.3";
+static char *version = "0.4";
