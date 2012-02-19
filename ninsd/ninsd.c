@@ -320,8 +320,9 @@ void complete_info(int sock, uint8_t *outpack,int ttl)
             get_dynamic_ipv4(ni, map_file);
         }
         else if ( get_ipv4  && ni->flag&NODE_INFO_GLOB )
+        {
              query_ipv4(sock, outpack, &ni->local);
-
+        }
         if ( (ni->flag&NODE_INFO_CHECK) == NODE_INFO_CHECK)
         {
             query_addr(sock, outpack, &ni->local);
@@ -331,7 +332,9 @@ void complete_info(int sock, uint8_t *outpack,int ttl)
                 get_dynamic_ipv4(ni, map_file);
             }
             else if ( get_ipv4 )
+            {
                 query_ipv4(sock, outpack, &ni->local);
+            }
         }
     }
 }
@@ -476,20 +479,29 @@ int main(int argc, char **argv)
     }
 
 
-    memset(&own_addr,0,sizeof(own_addr));
-    
-    sock = icmp_socket(device, &own_addr);
-
-    if ( sock < 0 )
-    {
-        return 1;
-    }
-
     /* check for pid file */
+    FILE *pidf;
     if ( access(pid_file,R_OK) == 0 )
     {
-         fprintf(stderr,"%s: error %s exist\n",prgName,pid_file);
-	 exit(1);
+         /* check if the process is running */
+	 pidf=fopen(pid_file,"r");
+	 if ( pidf )
+	 {
+	     if ( fscanf(pidf, "%d",&pid) == 1 )
+	     {
+	         if ( kill(pid,0) == 0 )
+		 {
+                     fprintf(stderr,"%s: error %s exist\n",prgName,pid_file);
+	              exit(1);
+		 }
+	     }
+	     fclose(pidf);
+	 }
+	 else
+	 {
+             fprintf(stderr,"%s: %s\n",prgName,strerror(errno));
+	     exit(1);
+         }
     }
 
     if ( ! foreground )
@@ -504,7 +516,7 @@ int main(int argc, char **argv)
     /* set signal handler and create pid file */
     set_signals();
     pid = getpid();
-    FILE *pidf = fopen(pid_file,"w");
+    pidf = fopen(pid_file,"w");
     if ( pidf > 0 )
     {
         fprintf(pidf,"%d\n",pid);
@@ -514,6 +526,14 @@ int main(int argc, char **argv)
     {
         perror("fopen");
 	exit(1);
+    }
+
+    memset(&own_addr,0,sizeof(own_addr));
+    sock = icmp_socket(device, &own_addr);
+
+    if ( sock < 0 )
+    {
+        return 1;
     }
     
     mainloop(sock, outpack, packlen);
