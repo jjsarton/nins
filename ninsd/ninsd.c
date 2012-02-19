@@ -95,6 +95,8 @@ char *pid_file = NULL;
 static void sig_handler(int sig)
 {
     int err;
+    /* first remove all dymamic entries */
+    delete_all_clients(domain, updater);
     err = unlink(pid_file);
     if (err < 0)
     {
