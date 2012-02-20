@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <syslog.h>
 
 #include <sys/ioctl.h>
 #include <netdb.h>
@@ -38,6 +39,7 @@
 #define TTL_MAX 600
 
 #define PID_DIR "/var/run/"
+
 
 #ifndef __linux__
 #define daemon(a,b) m_daemon(a,b)
@@ -100,9 +102,10 @@ static void sig_handler(int sig)
     err = unlink(pid_file);
     if (err < 0)
     {
-         perror("unlink");
+         syslog(LOG_ERR, "unlink: %s",strerror(errno));
          exit(1);
     }
+    syslog(LOG_NOTICE, "received signal %d, terminate",sig);
     exit(0);
 }
 
@@ -202,7 +205,7 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
     switch (icmph->icmp6_type)
     {
         case ICMP6_ECHO_REPLY:
-            printf("got ICMP6_ECHO_REPLY from %s\n", print_addr(&from->sin6_addr));
+            syslog(LOG_INFO, "got ICMP6_ECHO_REPLY from %s", print_addr(&from->sin6_addr));
             if ( icmph->icmp6_id == 0)
             {
                 /* answer from our interface */
@@ -210,10 +213,9 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
             }
         break;
         case ICMPV6_NI_REPLY:
-            printf("got ICMPV6_NI_REPLY from %s ", print_addr(&from->sin6_addr));
             if ( memcmp(&own_addr, &from->sin6_addr, sizeof(own_addr)) == 0 )
             {
-                printf("\n");
+                syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s", print_addr(&from->sin6_addr));
                 break;
             }
             int nl;
@@ -228,7 +230,7 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                         nl = data[0];
                         data++;
                         data[nl] = '\0';
-                        printf("name %s\n",data);
+                        syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: %s", print_addr(&from->sin6_addr),(char*)data);
                         node_info_add_name(&from->sin6_addr,(char*)data, domain, ttl, updater);
                     }
                 break;
@@ -238,12 +240,8 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                     {
                         uint8_t *data = (uint8_t *)nih + sizeof(struct ni_hdr) + 4; // ttl len = 4;
                         nl = data[0];
-                        printf("Addr %s\n",print_addr((struct in6_addr*)data));
+                        syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: Addr %s", print_addr(&from->sin6_addr),print_addr((struct in6_addr*)data));
                         node_info_add_global(&from->sin6_addr,(struct in6_addr*)data, ttl, domain, updater);
-                    }
-                    else
-                    {
-                        printf("\n");
                     }
                 break;
                 case NI_QTYPE_IPV4ADDR:
@@ -252,12 +250,8 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                     {
                         uint8_t *data = (uint8_t *)nih + sizeof(struct ni_hdr) + 4; // ttl len = 4;
                         nl = data[0];
-                        printf("Addr %s\n",print_addr4((struct in_addr*)data));
+                        syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: Addr %s", print_addr(&from->sin6_addr),print_addr4((struct in_addr*)data));
                         node_info_add_ipv4(&from->sin6_addr,(struct in_addr*)data, ttl, domain, updater);
-                    }
-                    else
-                    {
-                        printf("\n");
                     }
                 break;
                 default:
@@ -265,11 +259,11 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
             }
         break;
         case ND_ROUTER_SOLICIT:
-            printf("got ND_ROUTER_SOLICIT from %s\n", print_addr(&from->sin6_addr));
+            syslog(LOG_INFO, "got ND_ROUTER_SOLICIT from %s\n", print_addr(&from->sin6_addr));
             node_info_add_elem(&from->sin6_addr);
         break;
         case ND_ROUTER_ADVERT:
-            printf("got ND_ROUTER_ADVERT from %s\n", print_addr(&from->sin6_addr));
+            syslog(LOG_INFO,"got ND_ROUTER_ADVERT from %s\n", print_addr(&from->sin6_addr));
             struct in6_addr ns_server;
             memset(&ns_server, 0, sizeof(ns_server));
             decode_router_advertisement(icmph, cc, &ns_server, &ttl, domain);
@@ -294,7 +288,7 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
 #endif
             break;
         default:
-            printf("Received type %d\n",icmph->icmp6_type);
+            syslog(LOG_INFO, "Received type %d\n",icmph->icmp6_type);
         break;
     }
     return 0;
@@ -374,7 +368,7 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
             cc = recvmsg(sock, &msg, polling);
             if (cc < 0)
             {
-                perror("recvmsg");
+                syslog(LOG_ERR, "recvmsg: %s",strerror(errno));
                 if (errno == EAGAIN || errno == EINTR)
                 {
                     continue;
@@ -419,12 +413,13 @@ int main(int argc, char **argv)
     int foreground = 0;
     int t;
     pid_t pid;
+    int debug = 0;
 
     prgName = argv[0];
     if ( prgName && (prgName=strrchr(prgName,'/')) )
         prgName++;
 
-    while( (c = getopt(argc, argv, "i:vft:s:m:4p:")) > 0)
+    while( (c = getopt(argc, argv, "i:vft:s:m:4p:d")) > 0)
     {
         switch(c)
         {
@@ -455,6 +450,10 @@ int main(int argc, char **argv)
             case 'p':
                 pid_file = optarg;
             break;
+            break;
+            case 'd':
+                debug = 1;
+            break;
             default:
                 usage(prgName);
             break;
@@ -466,16 +465,27 @@ int main(int argc, char **argv)
         usage(prgName);
     }
 
+
+    /* set logging */
+    int opt = LOG_PID|LOG_CONS;
+    if ( foreground||debug )
+        opt |= LOG_PERROR;
+    openlog(prgName, opt, LOG_DAEMON);
+    if ( foreground||debug )
+        setlogmask(LOG_UPTO(LOG_INFO));
+    else
+        setlogmask(LOG_UPTO(LOG_NOTICE));
+
     if ( !pid_file )
     {
         pid_file = calloc(strlen(PID_DIR)+strlen(prgName)+1,1);
-	if ( pid_file == NULL )
-	{
-	     perror("calloc");
-	     exit(1);
-	}
-	strcpy(pid_file, PID_DIR);
-	strcat(pid_file, prgName);
+        if ( pid_file == NULL )
+        {
+             syslog(LOG_ERR,"calloc: %s",strerror(errno));
+             exit(1);
+        }
+        strcpy(pid_file, PID_DIR);
+        strcat(pid_file, prgName);
     }
 
 
@@ -483,36 +493,36 @@ int main(int argc, char **argv)
     FILE *pidf;
     if ( access(pid_file,R_OK) == 0 )
     {
-         /* check if the process is running */
-	 pidf=fopen(pid_file,"r");
-	 if ( pidf )
-	 {
-	     if ( fscanf(pidf, "%d",&pid) == 1 )
-	     {
-	         if ( kill(pid,0) == 0 )
-		 {
-                     fprintf(stderr,"%s: error %s exist\n",prgName,pid_file);
-	              exit(1);
-		 }
-	     }
-	     fclose(pidf);
-	 }
-	 else
-	 {
-             fprintf(stderr,"%s: %s\n",prgName,strerror(errno));
-	     exit(1);
-         }
+        /* check if the process is running */
+        pidf=fopen(pid_file,"r");
+        if ( pidf )
+        {
+            if ( fscanf(pidf, "%d",&pid) == 1 )
+            {
+                 if ( kill(pid,0) == 0 )
+                 {
+                     syslog(LOG_ERR,"error %s exist\n",pid_file);
+                     exit(1);
+                 }
+            }
+            fclose(pidf);
+        }
+        else
+        {
+             syslog(LOG_ERR,"%s: %s",prgName,strerror(errno));
+             exit(1);     
+        }
     }
 
     if ( ! foreground )
     {
         if (daemon(0, 0) < 0)
         {
-            perror("daemon");
-            exit(1);
+             syslog(LOG_ERR, "daemon: %s",strerror(errno));
+             exit(1);
         }
     }
-
+    
     /* set signal handler and create pid file */
     set_signals();
     pid = getpid();
@@ -520,21 +530,26 @@ int main(int argc, char **argv)
     if ( pidf > 0 )
     {
         fprintf(pidf,"%d\n",pid);
-	fclose(pidf);
+        fclose(pidf);
     }
     else
     {
-        perror("fopen");
-	exit(1);
+        syslog(LOG_ERR, "fopen: %s",strerror(errno));
+        exit(1);
     }
+
+    syslog(LOG_NOTICE,"started");
 
     memset(&own_addr,0,sizeof(own_addr));
     sock = icmp_socket(device, &own_addr);
 
     if ( sock < 0 )
     {
+        syslog(LOG_ERR,"error while opening socket");
         return 1;
     }
+
+    syslog(LOG_NOTICE,"enter main loop");
     
     mainloop(sock, outpack, packlen);
     return 0;

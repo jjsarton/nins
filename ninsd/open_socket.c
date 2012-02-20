@@ -4,6 +4,9 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <errno.h>
+#include <syslog.h>
+
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <ifaddrs.h>
@@ -42,7 +45,7 @@ static int wait_for_iface(char *name, struct in6_addr *addr)
    int if_found = 0;
    if ( name == NULL || addr == NULL)
    {
-       fprintf(stderr,"%s: null parameters not allowed\n",__FUNCTION__);
+       syslog(LOG_ERR,"%s: null parameters not allowed\n",__FUNCTION__);
        return 0;
    }
 
@@ -50,7 +53,7 @@ static int wait_for_iface(char *name, struct in6_addr *addr)
    {
        if ( getifaddrs(&ifa) )
        {
-           perror("getifaddrs");
+           syslog(LOG_ERR,"getifaddrs: %s",strerror(errno));
            return 0;
        }
        
@@ -84,7 +87,7 @@ static int wait_for_iface(char *name, struct in6_addr *addr)
 
        if ( !if_found )
        {
-           fprintf(stderr,"Interface %s not found\n",name);
+           syslog(LOG_ERR,"Interface %s not found",name);
            return 0;
        }
        poll(NULL,0,1000);
@@ -127,7 +130,7 @@ int icmp_socket(char *name, struct in6_addr *addr)
         if (setsockopt(sock, IPPROTO_ICMPV6, ICMP6_FILTER,
                        &filter, sizeof(struct icmp6_filter)) < 0 )
         {
-            perror("setsockopt");
+            syslog(LOG_ERR, "setsockopt: %s",strerror(errno));
             close(sock);
         }
         else
@@ -138,7 +141,7 @@ int icmp_socket(char *name, struct in6_addr *addr)
                                SO_BINDTODEVICE, name,
                                strlen(name)+1) < 0 )
                 {
-                    perror("setsockopt");
+                    syslog(LOG_ERR, "setsockopt: %s",strerror(errno));
                     close(sock);
                 }
             }
@@ -147,29 +150,8 @@ int icmp_socket(char *name, struct in6_addr *addr)
     else
     {
         perror("socket");
+        syslog(LOG_ERR, "socket: %s",strerror(errno));
     }
 
     return sock;
 }
-
-#if 0
-int main(int argc, char **argv)
-{
-    char *device = "eth0";
-    static struct in6_addr own_addr;
-    char ad[INET6_ADDRSTRLEN];
-
-    if ( argc > 1 )
-        device = argv[1];
-
-    if ( icmp_socket(device, &own_addr) < 0 )
-    {
-       return 1;
-    }
-
-    inet_ntop(AF_INET6, &own_addr, ad, sizeof(ad));
-    printf("%-7s %s\n",device,ad );
-
-    return 0;
-}
-#endif

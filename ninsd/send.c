@@ -15,6 +15,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdint.h>
+#include <syslog.h>
 
 #include <sys/ioctl.h>
 #include <netdb.h>
@@ -68,7 +69,7 @@ static int send_probe(int sock, uint8_t *buf, struct in6_addr *addr, int len, in
     cc = sendmsg(sock, &mhdr, 0);
     if ( cc < 0 )
     {
-        perror("sendmsg");
+        syslog(LOG_ERR,"sendmsg %s",strerror(errno));
     }
     return (cc == len ? 0 : cc);
 

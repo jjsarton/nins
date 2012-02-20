@@ -89,7 +89,8 @@ static int read_hosts(char *hosts)
            }
            else
            {
-               perror("calloc");
+//               perror("calloc");
+               syslog("calloc");
                fclose(fp);
                exit(1);
            }

@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <time.h>
+#include <syslog.h>
 
 #include <sys/time.h>
 #include <string.h>
@@ -349,22 +350,22 @@ static void call_nsupdate(node_info_t *info, int ttl, char *domain, char *update
     FILE *p = popen(updater, "w");
     if ( p )
     {
-        printf("Update DNS Time %lu\n",time(NULL));
-        printf("server ::1\n");
-        printf("zone %s.\n",domain);
-        printf("update delete %s AAAA\n", info->name);
+        syslog(LOG_INFO,"Update DNS Time %lu\n",time(NULL));
+        syslog(LOG_INFO,"server ::1\n");
+        syslog(LOG_INFO,"zone %s.\n",domain);
+        syslog(LOG_INFO,"update delete %s AAAA\n", info->name);
         if ( info->flag&NODE_HAS_IPV4 )
         {
-            printf("update delete %s A\n", info->name);
+            syslog(LOG_INFO,"update delete %s A\n", info->name);
         }
         if ( ttl > 0 )
         {
             inet_ntop(AF_INET6, &info->global, str, sizeof(str));
-            printf("update add %s %d AAAA %s\n", info->name, ttl, str);
+            syslog(LOG_INFO,"update add %s %d AAAA %s\n", info->name, ttl, str);
             if ( info->flag&NODE_HAS_IPV4 )
             {
                 inet_ntop(AF_INET, &info->ipv4, str, sizeof(str));
-                printf("update add %s %d A %s\n", info->name, ttl, str);
+                syslog(LOG_INFO,"update add %s %d A %s\n", info->name, ttl, str);
             }
         }
         fprintf(p,"server ::1\n");
