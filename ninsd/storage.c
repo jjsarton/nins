@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <syslog.h>
+#include <errno.h>
 
 #include <sys/time.h>
 #include <string.h>
@@ -129,7 +130,7 @@ int remove_elem(node_info_t *node_info)
 }
 
 
-int node_info_add_elem(struct in6_addr* addr )
+int node_info_add_elem(struct in6_addr* addr, int flag )
 {
     list_t *elem;
     node_info_t *ni;
@@ -140,6 +141,10 @@ int node_info_add_elem(struct in6_addr* addr )
         if ( ni )
         {
             ni->last_seen = time(NULL);
+            if ( flag == NODE_INFO_CHECK )
+            {
+                ni->flag |= NODE_INFO_CHECK;
+            }
             memcpy(&ni->local, addr,sizeof(struct in6_addr));
             list_insert(&root, ni);
         }
@@ -157,21 +162,28 @@ int node_info_add_global(struct in6_addr* local, struct in6_addr* global, int tt
     list_t *elem;
     node_info_t *ni;
     elem = list_search(root, local, cpm_local_addr);
-    if ( elem == NULL )
+    if ( elem == NULL && global != NULL )
     {
-        node_info_add_elem(local);
+        node_info_add_elem(local, 0);
         elem = list_search(root, local, cpm_local_addr);
     }
     if ( elem )
     {
         ni = (node_info_t*)elem->data;
-        memcpy(&ni->global, global, sizeof(*global));
-        ni->last_seen = time(NULL);
-        ni->flag |= NODE_INFO_GLOB;
-        if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL)
+        if ( global )
         {
-            call_nsupdate(ni, ttl, domain, updater);
-            ni->flag |= NODE_INFO_ALL;
+            memcpy(&ni->global, global, sizeof(*global));
+            ni->last_seen = time(NULL);
+            ni->flag |= NODE_INFO_GLOB;
+            if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL)
+            {
+                call_nsupdate(ni, ttl, domain, updater);
+                ni->flag |= NODE_INFO_ALL;
+            }
+        }
+        else
+        {
+            call_nsupdate(ni, 0, domain, updater);
         }
         ni->flag = ni->flag & ~ NODE_INFO_CHECK;
     }
@@ -191,12 +203,16 @@ int node_info_add_ipv4(struct in6_addr* local, struct in_addr* ipv4, int ttl, ch
     if ( elem )
     {
         ni = (node_info_t*)elem->data;
-        memcpy(&ni->ipv4, ipv4, sizeof(*ipv4));
         ni->last_seen = time(NULL);
-        if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL && !(ni->flag & NODE_HAS_IPV4))
+        if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL )
         {
             ni->flag |= NODE_HAS_IPV4;
-            call_nsupdate(ni, ttl, domain, updater);
+            ni->flag = ni->flag & ~(NODE_QUERY_MAP);
+            if ( memcmp(&ni->ipv4, ipv4, sizeof(*ipv4)) )
+            {
+                memcpy(&ni->ipv4, ipv4, sizeof(*ipv4));
+                call_nsupdate(ni, ttl, domain, updater);
+            }
         }
     }
     return 1;
@@ -260,11 +276,6 @@ int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl
     list_t *elem;
     node_info_t *ni;
     elem = list_search(root, local, cpm_local_addr);
-    if ( elem == NULL )
-    {
-        node_info_add_elem(local);
-        elem = list_search(root, local, cpm_local_addr);
-    }
 
     if ( elem )
     {
@@ -295,6 +306,15 @@ int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl
     return 1;
 }
 
+void set_query_mapped(struct in6_addr* addr)
+{
+    node_info_t *ni =search_local_address(addr);
+    if ( ni )
+    {
+        ni->flag |= NODE_QUERY_MAP;
+    }
+}
+
 node_info_t *search_incomplete(int ttl, char *domain, char *updater, int get_ipv4)
 {
     time_t act_time;
@@ -302,9 +322,14 @@ node_info_t *search_incomplete(int ttl, char *domain, char *updater, int get_ipv
     node_info_t *ret = NULL;
     act_time = time(NULL);
     int del = 0;
+
     while(elem)
     {
         node_info_t *ni = (node_info_t *)elem->data;
+        if ( ni->flag & NODE_QUERY_MAP )
+        {
+            return ni;
+        }
         if ( ni->last_seen < act_time )
         {
             if ( ((ni->flag & NODE_INFO_GLOB) != NODE_INFO_GLOB) || (get_ipv4 && !(ni->flag & NODE_HAS_IPV4)) )
@@ -387,7 +412,10 @@ static void call_nsupdate(node_info_t *info, int ttl, char *domain, char *update
         fprintf(p,"send\n");
         pclose(p);
     }
-
+    else
+    {
+        syslog(LOG_ERR,"failed to open pile; %s\n",strerror(errno));
+    }
 }
 
 void update_ns(int ttl, int del, char *domain, char *updater)
@@ -420,6 +448,7 @@ void delete_all_clients(char *domain, char *updater)
 {
     node_info_t *ni;
     list_t *elem = root;
+
     while (elem)
     {
         ni = (node_info_t *)elem->data;

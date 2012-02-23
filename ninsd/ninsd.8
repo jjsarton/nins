@@ -123,7 +123,21 @@ will not start if the pid file (default /var/run/ninsd) is present.
 If you want to run multiple instance of ninsd you can pass the
 path and name for the pid file or create a link to ninsd and
 launch ninsd via the link name.
- 
+
+.TP
+.BR "\-u user_name"
+.B ninsd
+will rund with the given user uid. Updating will not work if the
+use update method need some rights not provided by the user
+
+.TP
+.BR "\-g group_name"
+.B ninsd
+will rund with the given group gid. Updating will not work if the
+use update method need some rights not provided by the group
+
+
+
 .SH FILES
 
 .nf

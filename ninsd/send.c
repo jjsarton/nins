@@ -56,6 +56,8 @@ static int send_probe(int sock, uint8_t *buf, struct in6_addr *addr, int len, in
     int  cc;
     struct msghdr mhdr;
     struct iovec iov;
+    memset(&iov, 0, sizeof(iov));
+    memset(&mhdr, 0, sizeof(mhdr));
 
     iov.iov_len  = len;
     iov.iov_base = buf;
@@ -95,7 +97,7 @@ static int build_niquery(uint8_t *buf, struct in6_addr *addr,  int ni_query_code
             nih->ni_flags = 0;
         break;
         default:
-            nih->ni_flags = 0;
+           nih->ni_flags = 0;
     }
     for (i = 0; i < 8; i++)
         nih->ni_nonce[i] = rand();

@@ -1,4 +1,9 @@
-2012 February 20Version 0.5
+2012 February 22 Version 0.6
+- getting ipv4 adress modified
+- update script example for unbound added.
+- added change user and group.
+
+2012 February 20 Version 0.5
 - added logging and option -d (debug)
 
 2012 February 18 Version 0.4
@@ -8,7 +13,7 @@
 - Added detection of duplicate name.
 - Added option IPv4 update from dynamic. map file (tayga)
   or from the real client adress.
-- Some times the DNS enty what deleted, fixed.
+- Some times the DNS entry what deleted, fixed.
 - to much dns update, fixed.
 
 2012 February 02 Version 0.2

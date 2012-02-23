@@ -13,6 +13,8 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <syslog.h>
+#include <pwd.h>
+#include <grp.h>
 
 #include <sys/ioctl.h>
 #include <netdb.h>
@@ -56,8 +58,7 @@ static int m_daemon(int nochdir, int noclose)
         exit(0);
     } 
     /* child process */
- 
-    umask(0);
+
     sid = setsid();
     if (sid < 0) 
     {
@@ -91,15 +92,22 @@ static int ttl = 0;
 static struct in6_addr own_addr;
 static char *map_file = NULL; /* NAT46 Mapping */
 static int get_ipv4 = 0;
+static char *user = NULL;
+static char *group = NULL;
 
 char *pid_file = NULL;
 
 static void sig_handler(int sig)
 {
-    int err;
+    int err = 0;
     /* first remove all dymamic entries */
     delete_all_clients(domain, updater);
-    err = unlink(pid_file);
+    if ( pid_file )
+    {
+        err = unlink(pid_file);
+        free(pid_file);
+    }
+
     if (err < 0)
     {
          syslog(LOG_ERR, "unlink: %s",strerror(errno));
@@ -141,6 +149,44 @@ static char *print_addr4(struct in_addr *addr)
     static char str[128];
     inet_ntop(AF_INET, addr, str, sizeof(str));
     return str;
+}
+
+static void set_ownership(char *user, char *group)
+{
+    struct passwd *pwd;
+    struct group *grp;
+    if ( group )
+    {
+        if ( (grp = getgrnam(group)) )
+            setgid(grp->gr_gid);
+    }
+    if ( user )
+    {
+        if ( (pwd = getpwnam(user)) )
+            setuid(pwd->pw_uid);
+    }
+}
+
+static void set_pid_ownership(char *user, char *group, char *pid_obj)
+{
+    struct passwd *pwd;
+    struct group *grp;
+    pid_t uid = 0;
+    gid_t gid = 0;
+    if ( group )
+    {
+        if ( (grp = getgrnam(group)) )
+            gid = grp->gr_gid;
+    }
+    if ( user )
+    {
+        if ( (pwd = getpwnam(user)) )
+            uid = pwd->pw_uid;
+    }
+    if ( pid_obj )
+    {
+        chown(pid_obj, uid, gid);
+    }
 }
 
 void get_dynamic_ipv4(node_info_t *ni, char *map_file)
@@ -233,6 +279,10 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                         syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: %s", print_addr(&from->sin6_addr),(char*)data);
                         node_info_add_name(&from->sin6_addr,(char*)data, domain, ttl, updater);
                     }
+                    else
+                    {
+                        syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: %s", print_addr(&from->sin6_addr),"NO NAME");
+                    }
                 break;
                 case NI_QTYPE_IPV6ADDR:
                     len = cc - sizeof(struct ni_hdr) + 4;
@@ -240,8 +290,16 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                     {
                         uint8_t *data = (uint8_t *)nih + sizeof(struct ni_hdr) + 4; // ttl len = 4;
                         nl = data[0];
-                        syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: Addr %s", print_addr(&from->sin6_addr),print_addr((struct in6_addr*)data));
+                        char add[128];
+                        strcpy(add, print_addr((struct in6_addr*)data));
+                        syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: Addr %s", print_addr(&from->sin6_addr),add);
                         node_info_add_global(&from->sin6_addr,(struct in6_addr*)data, ttl, domain, updater);
+                    }
+                    else
+                    {
+                        syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: %s", print_addr(&from->sin6_addr),"NO IPV6");
+                        /* delete this entry */
+                        node_info_add_global(&from->sin6_addr,(struct in6_addr*)NULL, ttl, domain, updater);
                     }
                 break;
                 case NI_QTYPE_IPV4ADDR:
@@ -253,6 +311,12 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                         syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: Addr %s", print_addr(&from->sin6_addr),print_addr4((struct in_addr*)data));
                         node_info_add_ipv4(&from->sin6_addr,(struct in_addr*)data, ttl, domain, updater);
                     }
+                    else
+                    {
+                        syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: %s", print_addr(&from->sin6_addr),"NO IPV4");
+                        set_query_mapped(&from->sin6_addr);
+                        
+                    }
                 break;
                 default:
                     printf("Other NI_QTYPE\n");
@@ -260,7 +324,10 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
         break;
         case ND_ROUTER_SOLICIT:
             syslog(LOG_INFO, "got ND_ROUTER_SOLICIT from %s\n", print_addr(&from->sin6_addr));
-            node_info_add_elem(&from->sin6_addr);
+            if ( memcmp(&from->sin6_addr,&own_addr, sizeof(own_addr)) )
+            {
+                node_info_add_elem(&from->sin6_addr, NODE_INFO_CHECK);
+            }
         break;
         case ND_ROUTER_ADVERT:
             syslog(LOG_INFO,"got ND_ROUTER_ADVERT from %s\n", print_addr(&from->sin6_addr));
@@ -294,10 +361,26 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
     return 0;
 }
 
+void get_ipv4_addr(int sock, node_info_t *ni, uint8_t *outpack,int ttl)
+{
+    /* true ipv4 address prevail */
+    /* for the first time we may have the ipve adress from tayga
+     * this will bereplaced by the true ipv4 adress of node as
+     * soon as we have got it from the net.
+     */
+    if ( map_file && (ni->flag & NODE_QUERY_MAP))
+    {
+        get_dynamic_ipv4(ni, map_file);
+    }
+    else if ( get_ipv4 )
+    {
+        query_ipv4(sock, outpack, &ni->local);
+    }
+}
+
 void complete_info(int sock, uint8_t *outpack,int ttl)
 {
     int flag = get_ipv4 ? 1: map_file ? 1 : 0;
-
     node_info_t *ni = search_incomplete(ttl, domain, updater, flag);
     if ( ni )
     {
@@ -309,26 +392,15 @@ void complete_info(int sock, uint8_t *outpack,int ttl)
             query_addr(sock, outpack, &ni->local);
         }
 
-        if ( map_file && ni->flag&NODE_INFO_GLOB )
+        if ( (ni->flag&NODE_INFO_GLOB && !(ni->flag & NODE_HAS_IPV4)) || (ni->flag & NODE_QUERY_MAP) )
         {
-            get_dynamic_ipv4(ni, map_file);
+            get_ipv4_addr(sock, ni, outpack, ttl);
         }
-        else if ( get_ipv4  && ni->flag&NODE_INFO_GLOB )
-        {
-             query_ipv4(sock, outpack, &ni->local);
-        }
+
         if ( (ni->flag&NODE_INFO_CHECK) == NODE_INFO_CHECK)
         {
             query_addr(sock, outpack, &ni->local);
-
-            if ( map_file )
-            {
-                get_dynamic_ipv4(ni, map_file);
-            }
-            else if ( get_ipv4 )
-            {
-                query_ipv4(sock, outpack, &ni->local);
-            }
+            get_ipv4_addr(sock, ni, outpack, ttl);
         }
     }
 }
@@ -389,7 +461,7 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
             {
                 struct in6_addr addr;
                 inet_pton(AF_INET6, "ff02::1", &addr);
-                query_name(sock, outpack, &addr);
+                query_addr(sock, outpack, &addr);
                 send_echo_request = 0;
             }
         }
@@ -401,7 +473,7 @@ char *prgName = NULL;
 
 static void usage(char *me)
 {
-    fprintf(stderr,"Usage %s -i interface [-v] [-f] [-t ttl_max] [-s updater] [-4] [-m map_file]\n",me);
+    fprintf(stderr,"Usage %s -i interface [-v] [-f] [-t ttl_max] [-s updater] [-4] [-m map_file] -g group -u user\n",me);
     abort();
 }
 
@@ -419,7 +491,7 @@ int main(int argc, char **argv)
     if ( prgName && (prgName=strrchr(prgName,'/')) )
         prgName++;
 
-    while( (c = getopt(argc, argv, "i:vft:s:m:4p:d")) > 0)
+    while( (c = getopt(argc, argv, "i:vft:s:m:4p:du:g:")) > 0)
     {
         switch(c)
         {
@@ -448,11 +520,17 @@ int main(int argc, char **argv)
                 map_file = optarg;
             break;
             case 'p':
-                pid_file = optarg;
+                pid_file = strdup(optarg);
             break;
             break;
             case 'd':
                 debug = 1;
+            break;
+            case 'u':
+                user = optarg;
+            break;
+            case 'g':
+                group = optarg;
             break;
             default:
                 usage(prgName);
@@ -465,7 +543,7 @@ int main(int argc, char **argv)
         usage(prgName);
     }
 
-
+    umask(07);
     /* set logging */
     int opt = LOG_PID|LOG_CONS;
     if ( foreground||debug )
@@ -478,6 +556,7 @@ int main(int argc, char **argv)
 
     if ( !pid_file )
     {
+        set_pid_ownership(user, group, PID_DIR);
         pid_file = calloc(strlen(PID_DIR)+strlen(prgName)+1,1);
         if ( pid_file == NULL )
         {
@@ -487,7 +566,6 @@ int main(int argc, char **argv)
         strcpy(pid_file, PID_DIR);
         strcat(pid_file, prgName);
     }
-
 
     /* check for pid file */
     FILE *pidf;
@@ -509,8 +587,8 @@ int main(int argc, char **argv)
         }
         else
         {
-             syslog(LOG_ERR,"%s: %s",prgName,strerror(errno));
-             exit(1);     
+             syslog(LOG_ERR,"%s:%s  %s",prgName,pid_file, strerror(errno));
+             exit(1);
         }
     }
 
@@ -522,22 +600,27 @@ int main(int argc, char **argv)
              exit(1);
         }
     }
-    
+
     /* set signal handler and create pid file */
     set_signals();
     pid = getpid();
-    pidf = fopen(pid_file,"w");
-    if ( pidf > 0 )
-    {
-        fprintf(pidf,"%d\n",pid);
-        fclose(pidf);
-    }
-    else
-    {
-        syslog(LOG_ERR, "fopen: %s",strerror(errno));
-        exit(1);
-    }
 
+    if ( pid_file )
+    {
+       pidf = fopen(pid_file,"w");
+       if ( pidf > 0 )
+       {
+           fprintf(pidf,"%d\n",pid);
+           fclose(pidf);
+           set_pid_ownership(user, group, pid_file);
+       }
+       else
+       {
+           syslog(LOG_ERR, "fopen: %s",strerror(errno));
+           exit(1);
+       }
+    }
+    
     syslog(LOG_NOTICE,"started");
 
     memset(&own_addr,0,sizeof(own_addr));
@@ -549,8 +632,9 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    set_ownership(user,group);
     syslog(LOG_NOTICE,"enter main loop");
-    
+
     mainloop(sock, outpack, packlen);
     return 0;
 }
