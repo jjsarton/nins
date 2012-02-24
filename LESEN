@@ -8,7 +8,9 @@ nutzt.
 
 Mit den ninfo icmpv6 Nachrichten können Namen und Adressen
 der beteiligten Rechner ermittelt werden und der Namen Server
-wird aktualisiert (DDNS)
+wird aktualisiert (DDNS). Neben bind können auch andere
+DNS Server wir uunbound und dnsmasq die kein Update via
+DHCP-v6 unterstützen verwenden.
 
 
 radvc

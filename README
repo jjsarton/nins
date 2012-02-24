@@ -4,7 +4,10 @@ ninsd
 Ninsd is a little daemon which ask clients of the
 local network for IPv6 adress and name. After these
 data are collected the name server is updated and
-the cleinets can be adressed by name.
+the clients can be adressed by name. You may use
+different DNS server (dnsmasq, unbound) which allow
+some kind of updating even if they don't support
+DHCP-v6.
 
 Ninsd is to be installed on the same machine as the
 name server and on the clients you must install
@@ -14,15 +17,7 @@ ninfod (https://github.com/yaegashi/ninfod)
 radvc
 -----
 
-Radvc ist auf Clients rechner zu installieren die nur
-mit radvd ihre IPv6 Adresse bilden oder bei den das
-DHCP v6 nicht optimal unterstüzt wird.
-Radvc has to be installed on the clients. Radvc
-correct the file /etc/resolv.conf which will contain
-the nameserver and the domain search lust offered by
-radvd.
-
 The daemon rdnssd which is provided by many Linux
 distribution don't know at this time the domain search
 list, this will be added on the next version. For now
-you should use radvc.
+you should use radvc on you clients.

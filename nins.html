@@ -122,7 +122,9 @@
 			The second approach what choosed, this implies that the
 			name server and ninsd are running on the same machine. The
 			server address is "::1" so that we will not have troubles
-			if an update come from global addresses.
+			if an update come from global addresses. In order to
+			work ninsd require that the router advertisement daemon
+			radvd work also if the adress assignement is done by dbcp.
 		</p>
 		<h3>NetworkManager and /etc/resolv.conf</h3>
 		<p>
@@ -178,6 +180,8 @@
 				<li>Support for DNS64/NAT64 with tayga.</li>
 				<li>Access from IPv6/IPv4 to IPv4/IPv6 devices, if tayga
 				   is installed.</li>
+				<li>Use of some DNS Server as unbound and dnsnasq which don't
+				normally allow updating via dhcp-v6 is possible.</li>
 			</ul>
 			<ul>
 				<li>Clients don't need special configuration, only 2 little
