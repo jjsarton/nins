@@ -15,12 +15,12 @@
 # If you modify the variable SEARCH_LIST, the first domain
 # must be the own dynamic domain for the local network
 # example:
-# SEARCH_LIST=localnet example.org
+# SEARCH_LIST=dynamic example.org
 # 
-# localnet is the "privat/ineternal" of the zone managed
+# dynamic is the "privat/ineternal" of the zone managed
 # by the server. example.org is an other regular domain
 #
-# This scrpt can also build all required configurations files
+# This script can also build all required configurations files
 # 
 ###############################################################
 
@@ -49,6 +49,19 @@ SEARCH_LIST=dynamic
 # normaly not touch this.
 ##############################################
 NAMED_CONF=/etc/named.conf
+NAMED_CONF_OPT=/etc/named.conf
+if [ ! -e $NAMED_CONF ]
+then
+    if [ -e /etc/bind/named.conf ]
+    then
+        NAMED_CONF=/etc/bind/named.conf
+        NAMED_CONF_OPT=/etc/bind/named.conf.options
+    else
+       echo "can't find out how to update named"
+       exit 1;
+    fi
+fi
+
 
 # get main address
 EXT_IP=`ip ad sh dev $EXT_IF | sed -n -e '/inet / s/.*inet \(.*\)\/.*/\1/p'`
@@ -60,7 +73,7 @@ IPV6_ADDR=${IPV6_PREFIX}1
 IPV4_PREFIX=${IPV4_NET}.0
 
 ZONE=`echo $SEARCH_LIST |awk '{ print $1 }'`
-LOCATION=`cat $NAMED_CONF | awk '{ if ( $1 == "directory" ) { print $2 } }' | tr -d '";'`
+LOCATION=`cat $NAMED_CONF_OPT | awk '{ if ( $1 == "directory" ) { print $2 } }' | tr -d '";'`
 
 ##############################################
 # Helper function for building a new named configuration
@@ -104,7 +117,7 @@ insert_option()
 
 check_DNS64()
 {
-    if grep 'include "dns64.conf";' $NAMED_CONF >/dev/null
+    if grep 'include "dns64.conf";' $NAMED_CONF_OPT >/dev/null
     then
         echo 0
     else
@@ -150,9 +163,9 @@ build_named_conf()
 
     if [ $INSERT_DNS64 = 1 ]
     then
-        sed $NAMED_CONF -e 's/\(options.*{\)/\1\n\tinclude "dns64.conf";/' > $NAMED_CONF.tmp
-        cat $NAMED_CONF.tmp > $NAMED_CONF
-        rm $NAMED_CONF.tmp
+        sed $NAMED_CONF_OPT -e 's/\(directory.*;\)/\1\n\tinclude "dns64.conf";/' > $NAMED_CONF_OPT.tmp
+        cat $NAMED_CONF_OPT.tmp > $NAMED_CONF_OPT
+        rm $NAMED_CONF_OPT.tmp
     fi
 
    if [ $INSERT_ZONE=1 ]
