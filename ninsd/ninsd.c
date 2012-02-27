@@ -408,7 +408,6 @@ void complete_info(int sock, uint8_t *outpack,int ttl)
 int mainloop(int sock, uint8_t *outpack, int packlen)
 {
     struct pollfd pollfd;
-
     char addrbuf[128];
     char ans_data[4096];
     struct iovec iov;

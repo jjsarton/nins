@@ -326,6 +326,10 @@ node_info_t *search_incomplete(int ttl, char *domain, char *updater, int get_ipv
     while(elem)
     {
         node_info_t *ni = (node_info_t *)elem->data;
+        if ( !(ni->flag & NODE_INFO_NAME) )
+        {
+            return ni;
+        }
         if ( ni->flag & NODE_QUERY_MAP )
         {
             return ni;
