@@ -88,12 +88,13 @@ static void set_signals(void)
     sigaction(SIGINT, &act, NULL);
     sigaction(SIGQUIT, &act, NULL);
     sigaction(SIGTERM, &act, NULL);
-} 
+}
 
 
 static int cp(const char *src, const char *dest)
 {
     struct stat st;
+    int r;
     if ( stat(src, &st) == 0 )
     {
         char *buf = calloc(st.st_size,1);
@@ -102,30 +103,29 @@ static int cp(const char *src, const char *dest)
             FILE *fp = fopen(src, "r");
             if ( fp )
             {
-	        int r = fread(buf, st.st_size, 1, fp);
-                r = 0;
-	        fclose(fp);
-	        if ((fp = fopen(dest, "w")) )
-		{
-	            fwrite(buf, st.st_size, 1, fp);
-	            fclose(fp);
-	            return 1;
+                r = fread(buf, 1, st.st_size, fp);
+                fclose(fp);
+                if ( r > 0 && (fp = fopen(dest, "w")) )
+                {
+                    fwrite(buf, r, 1, fp);
+                    fclose(fp);
+                    return 1;
                 }
-		else
-		{
-		    perror("fopen dest");
-		}
+                else
+                {
+                    perror("fopen dest");
+                }
             }
-	    else
-	    {
-	        perror("fopen src");
-	    }
-	    free(buf);
+            else
+            {
+                perror("fopen src");
+            }
+            free(buf);
         }
-	else
-	{
-	    perror("calloc");
-	}
+        else
+        {
+            perror("calloc");
+        }
     }
     else
     {
@@ -153,7 +153,7 @@ static int init_resolv_conf_data(void)
     return 0;
 }
 
-static int check_for_search(char *line, char *domain)
+static int check_for_search(const char *line, const char *domain)
 {
     int ret = 0;
     char *comment = strstr(line,"#");
@@ -173,7 +173,7 @@ static int check_for_search(char *line, char *domain)
     return ret;
 }
 
-static int check_for_server(char *line, char *server)
+static int check_for_server(const char *line, const char *server)
 {
     int ret = 0;
     char *comment = strstr(line,"#");
@@ -190,10 +190,28 @@ static int check_for_server(char *line, char *server)
     return ret;
 }
 
+static int copy_name_server(char *in, char *out, int sz)
+{
+    int found = 0;
+    if ( (strstr(in,"nameserver ")) == in )
+    {
+        if ( strlen(in) < sz-1 )
+            strncpy(out, in, sz-1);
+        else
+            strcpy(out,in);
+        out[sz-1]='\0';
+        found = 1;
+    }
+    return found;
+}
+
 static int mod_resolv_conf(const char *resolv_conf, char *save_file, char *domain, char *ns_server)
 {
     struct  stat act_stat;
-    
+    char    nameserver[2][256];
+    int idx = 0;
+
+    memset(nameserver, 0, sizeof(nameserver));
     if ( *domain && *resolv_conf )
     {
         if ( stat(resolv_conf, &act_stat) == 0 )
@@ -223,14 +241,24 @@ static int mod_resolv_conf(const char *resolv_conf, char *save_file, char *domai
                         {
                             has_server = 1;
                         }
+                        if ( idx < 2 )
+                        {
+                            if (copy_name_server(buf, nameserver[idx], sizeof(nameserver[idx])))
+                            {
+                                idx++;
+                            }
+                        }
                     }
                     fclose(fp);
 
                     if ( !has_server || !has_search )
                     {
                         /* save old file build a new */
-			cp(resolv_conf, save_file);
-			
+                        if ( !cp(resolv_conf, save_file) )
+                        {
+                            printf("Copy %s to %s failed\n",resolv_conf, save_file);
+                        }
+
                         fp = fopen(resolv_conf,"w");
 
                         if ( fp )
@@ -240,6 +268,13 @@ static int mod_resolv_conf(const char *resolv_conf, char *save_file, char *domai
                             printf("%s: set nameserver %s\n",me,ns_server);
                             fprintf(fp, "nameserver %s\n",ns_server);
                             resolv_time = time(NULL);
+                            int i = 0;
+                            while (i < idx)
+                            {
+                                printf("%s: set %s\n",me,nameserver[i]);
+                                fprintf(fp, "%s\n",nameserver[i]);
+                                i++;
+                            }
                             fclose(fp);
                         }
                     }
@@ -405,7 +440,7 @@ static int open_socket(void)
         if (setsockopt(sock, IPPROTO_ICMPV6, ICMP6_FILTER, &filter, sizeof(struct icmp6_filter))<0)
         {
             perror("setsockopt");
-	    close(sock);
+        close(sock);
             sock=-1;
         }
     }
@@ -420,12 +455,7 @@ int main(int argc, char **argv)
 {
     int foreground = 0;
     int c;
-    int sock = open_socket();
-
-    if ( sock == -1 )
-        exit(1);
-    if ( !init_resolv_conf_data() )
-        exit(1);
+    int sock;
 
     me = strchr(argv[0],'/');
     if ( me == NULL ) me = argv[0];
@@ -446,12 +476,19 @@ int main(int argc, char **argv)
             break;
             case 'v':
                printf("%s: version %s\n",me,version);
+               return 0;
             break;
             default:
                 printf("usage: %s [-f]\n",me);
                 exit(1);
         }
     }
+
+    sock = open_socket();
+    if ( sock == -1 )
+        exit(1);
+    if ( !init_resolv_conf_data() )
+        exit(1);
 
     char *s = strrchr(resolv_conf, '/');
     if ( s )
@@ -464,7 +501,7 @@ int main(int argc, char **argv)
         }
         else
         {
-	    perror("calloc");
+        perror("calloc");
             exit(1);
         }
     }
