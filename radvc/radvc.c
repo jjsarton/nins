@@ -2,12 +2,21 @@
  * listen for radvd router advertissement and
  * fill the file /etc/resolv.conf if the required
  * informations are not present.
+ *
+ * TBD:
+ * read resolv.conf file into a list and check if search and nameserver
+ * are set according to our infos.
+ * if our search list don't contain our own domain put it at the beginnning
+ * of oir list
+ * put our name server as the first name server if there are more
+ * name server.
  */
  
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <signal.h>
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -34,11 +43,14 @@
  */
  
 static char *resolv_conf = "/etc/resolv.conf";
+static char *save_dir = "/tmp";
+static char *save_file = "/tmp";
 static char domain[4096];
 static char ns_server[256];
 static time_t resolv_time = 0;
 static off_t  resolv_size = 0;
 
+static int cp(const char *src, const char *dest);
 
 static char *me = NULL;
 
@@ -50,6 +62,77 @@ typedef struct ra_xxx_info_head
     uint32_t lifetime;
 } ra_xxx_head_t;
 
+static void sig_handler(int sig)
+{
+    /* restore the resolv.conf file */
+    cp(save_file, resolv_conf);
+    unlink(save_file);
+    exit(0);
+}
+
+static void set_signals(void)
+{
+    struct sigaction act;
+    sigset_t smask;
+    sigemptyset(&smask);
+    sigaddset(&smask, SIGHUP);
+    sigaddset(&smask, SIGINT);
+    sigaddset(&smask, SIGQUIT);
+    sigaddset(&smask, SIGTERM);
+
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = sig_handler;
+    act.sa_mask = smask;
+
+    sigaction(SIGHUP, &act, NULL);
+    sigaction(SIGINT, &act, NULL);
+    sigaction(SIGQUIT, &act, NULL);
+    sigaction(SIGTERM, &act, NULL);
+} 
+
+
+static int cp(const char *src, const char *dest)
+{
+    struct stat st;
+    if ( stat(src, &st) == 0 )
+    {
+        char *buf = calloc(st.st_size,1);
+        if ( buf )
+        {
+            FILE *fp = fopen(src, "r");
+            if ( fp )
+            {
+	        int r = fread(buf, st.st_size, 1, fp);
+                r = 0;
+	        fclose(fp);
+	        if ((fp = fopen(dest, "w")) )
+		{
+	            fwrite(buf, st.st_size, 1, fp);
+	            fclose(fp);
+	            return 1;
+                }
+		else
+		{
+		    perror("fopen dest");
+		}
+            }
+	    else
+	    {
+	        perror("fopen src");
+	    }
+	    free(buf);
+        }
+	else
+	{
+	    perror("calloc");
+	}
+    }
+    else
+    {
+        perror("stat");
+    }
+    return 0;
+}
 
 static int init_resolv_conf_data(void)
 {
@@ -107,7 +190,7 @@ static int check_for_server(char *line, char *server)
     return ret;
 }
 
-static int mod_resolv_conf(char *resolv_conf, char *domain, char *ns_server)
+static int mod_resolv_conf(const char *resolv_conf, char *save_file, char *domain, char *ns_server)
 {
     struct  stat act_stat;
     
@@ -136,26 +219,24 @@ static int mod_resolv_conf(char *resolv_conf, char *domain, char *ns_server)
                         {
                             has_search = 1;
                         }
-                        if ( check_for_server(buf,ns_server) )
+                        if ( check_for_server(buf, ns_server) )
                         {
                             has_server = 1;
                         }
                     }
                     fclose(fp);
+
                     if ( !has_server || !has_search )
                     {
-                        /* append nameserver to resolv.conf */
-                        if ( !has_search && *domain )
-                            fp = fopen(resolv_conf,"w");
-                        else
-                            fp = fopen(resolv_conf,"a+");
+                        /* save old file build a new */
+			cp(resolv_conf, save_file);
+			
+                        fp = fopen(resolv_conf,"w");
+
                         if ( fp )
                         {
-                            if ( !has_search && *domain )
-                            {
-                                printf("%s: set search %s\n",me,domain);
-                                fprintf(fp, "search %s\n",domain);
-                            }
+                            printf("%s: set search %s\n",me,domain);
+                            fprintf(fp, "search %s\n",domain);
                             printf("%s: set nameserver %s\n",me,ns_server);
                             fprintf(fp, "nameserver %s\n",ns_server);
                             resolv_time = time(NULL);
@@ -231,7 +312,7 @@ static int decode_router_advertisement(struct icmp6_hdr *icmph, int len)
     }
     if ( *domain && !*ns_server)
     {
-        mod_resolv_conf(resolv_conf, domain,  ns_server);
+        mod_resolv_conf(resolv_conf, save_file, domain,  ns_server);
     }
     return 1;
 }
@@ -272,7 +353,7 @@ static int parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *t
     return 0;
 }
 
-static int mainloop(int sock)
+static int mainloop(int sock, const char *resolv_conf, char *save_file)
 {
     char addrbuf[128];
     char ans_data[4096];
@@ -297,8 +378,8 @@ static int mainloop(int sock)
             msg.msg_namelen = sizeof(addrbuf);
             msg.msg_iov = &iov;
             msg.msg_iovlen = 1;
-            msg.msg_control = NULL;//ans_data;
-            msg.msg_controllen = 0;//sizeof(ans_data);
+            msg.msg_control = NULL;
+            msg.msg_controllen = 0;
             cc = recvmsg(sock, &msg, polling);
             if (cc > 8)
             {
@@ -307,7 +388,7 @@ static int mainloop(int sock)
         }
         else if ( *domain && *ns_server)
         {
-            mod_resolv_conf(resolv_conf, domain, ns_server);
+            mod_resolv_conf(resolv_conf, save_file, domain, ns_server);
         }
     }
     return 0;
@@ -324,6 +405,7 @@ static int open_socket(void)
         if (setsockopt(sock, IPPROTO_ICMPV6, ICMP6_FILTER, &filter, sizeof(struct icmp6_filter))<0)
         {
             perror("setsockopt");
+	    close(sock);
             sock=-1;
         }
     }
@@ -349,12 +431,18 @@ int main(int argc, char **argv)
     if ( me == NULL ) me = argv[0];
     else me++;
 
-    while((c = getopt(argc, argv, "fv")) > 0)
+    while((c = getopt(argc, argv, "fvd:r:")) > 0)
     {
         switch (c)
         {
             case 'f':
                foreground = 1;
+            break;
+            case 'r':
+               resolv_conf = optarg;
+            break;
+            case 'd':
+               save_dir = optarg;
             break;
             case 'v':
                printf("%s: version %s\n",me,version);
@@ -365,6 +453,27 @@ int main(int argc, char **argv)
         }
     }
 
+    char *s = strrchr(resolv_conf, '/');
+    if ( s )
+    {
+        c = strlen(save_dir)+1+ strlen(s);
+        save_file = calloc(c+1,1);
+        if ( save_file )
+        {
+            sprintf(save_file, "%s%s",save_dir, s);
+        }
+        else
+        {
+	    perror("calloc");
+            exit(1);
+        }
+    }
+    else
+    {
+        fprintf(stderr,"%s: absolute path required for the resolv.conf file\n",me);
+        exit(1);
+    }
+    set_signals();
     if ( ! foreground )
     {
         if (daemon(0, 0) < 0)
@@ -374,6 +483,7 @@ int main(int argc, char **argv)
         }
     }
 
-    mainloop(sock);
+    
+    mainloop(sock, resolv_conf, save_file);
     return 0;
 }

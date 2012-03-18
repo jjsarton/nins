@@ -16,7 +16,7 @@
 radvc \- complete / generate a resolv.conf file according to radvd information
 .SH SYNOPSIS
 .B radvc
-.B "[ \-f ] [ \v ]"
+.B "[ \-f ] [ \-v ] [ \-r resolv-conf-file]"
 
 .SH DESCRIPTION
 .B radvc
@@ -29,8 +29,13 @@ and
 ).
 
 .B radvc
-will be helpfull for the case that the system is only configured via radvd
-or if the wanted values are not set by the dhcp client programm.
+will be helpfull for the case that the system is only configured via radvd,
+or if the wanted values are not set by the dhcp client programm. If we have
+an IPv6 VPN connection,
+.B radvc
+will build a new resolv.conf file and restore the previous if the connection
+is closed.
+
 
 .SH OPTIONS
  
@@ -38,8 +43,20 @@ or if the wanted values are not set by the dhcp client programm.
 .BR "\-f"
 The server is started in foreground and some debug messages will be printed
 out.
+
+.TP
+.BR "\-r"
+specify the file to be created. default is /etc/resolv.conf.
+
+
+.TP
+.BR "\-d"
+specify the directory where /etc/resolv.conf is temporary saved. This allows
+us to restore the old configurations file. Default is /tmp
+
+.TP
 .BR "\-v"
-Printoit the version number and exit.
+Print the version number and exit.
 
 .SH FILES
 
