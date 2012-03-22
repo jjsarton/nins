@@ -71,7 +71,9 @@ static int send_probe(int sock, uint8_t *buf, struct in6_addr *addr, int len, in
     cc = sendmsg(sock, &mhdr, 0);
     if ( cc < 0 )
     {
-        syslog(LOG_ERR,"sendmsg %s",strerror(errno));
+       static char str[128];
+       inet_ntop(AF_INET6, addr, str, sizeof(str));
+       syslog(LOG_ERR,"sendmsg to %s: %s",str,strerror(errno));
     }
     return (cc == len ? 0 : cc);
 

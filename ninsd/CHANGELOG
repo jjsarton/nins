@@ -1,3 +1,7 @@
+2012 March 22 Version 0.7
+- bug witth program name fixed
+- pid file contain now the interface name
+
 2012 February 22 Version 0.6
 - getting ipv4 adress modified
 - update script example for unbound added.

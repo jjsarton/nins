@@ -36,7 +36,7 @@
  *
  **********************************************/
  
-static int wait_for_iface(char *name, struct in6_addr *addr)
+static int wait_for_iface(char *name, int wait_for_if, struct in6_addr *addr)
 {
    struct ifaddrs *ifa = NULL;
    struct ifaddrs *pt;
@@ -87,6 +87,11 @@ static int wait_for_iface(char *name, struct in6_addr *addr)
 
        if ( !if_found )
        {
+           if ( wait_for_if )
+           {
+               sleep(1);
+               continue;
+           }
            syslog(LOG_ERR,"Interface %s not found",name);
            return 0;
        }
@@ -107,12 +112,12 @@ static int wait_for_iface(char *name, struct in6_addr *addr)
  *
  **********************************************/
 
-int icmp_socket(char *name, struct in6_addr *addr)
+int icmp_socket(char *name, int wait_for_if, struct in6_addr *addr)
 {
     struct icmp6_filter filter;
     int sock = -1;
 
-    if ( !wait_for_iface(name, addr) )
+    if ( !wait_for_iface(name, wait_for_if, addr) )
     {
        return -1;
     }
@@ -153,5 +158,6 @@ int icmp_socket(char *name, struct in6_addr *addr)
         syslog(LOG_ERR, "socket: %s",strerror(errno));
     }
 
+    if ( wait_for_if ) sleep(1);
     return sock;
 }

@@ -416,7 +416,7 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
     int polling = MSG_DONTWAIT;
     int send_echo_request = 1;
     pollfd.fd = sock;
-    pollfd.events = POLLIN;
+    pollfd.events = POLLIN|POLLPRI|POLLRDHUP|POLLERR|POLLHUP|POLLNVAL;
     pollfd.revents = 0;
 
     /* make shure that radvd send a router advertisement */
@@ -425,6 +425,9 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
     for(;;)
     {
         poll(&pollfd, 1, 1000);
+        if ( pollfd.revents && !(pollfd.revents & POLLIN) )
+printf("poll revents %x\n",pollfd.revents);
+
         if ( (pollfd.revents & POLLIN) == POLLIN )
         {
             iov.iov_len = packlen;
@@ -485,12 +488,14 @@ int main(int argc, char **argv)
     int t;
     pid_t pid;
     int debug = 0;
+    int wait_for_if = 0;
 
-    prgName = argv[0];
-    if ( prgName && (prgName=strrchr(prgName,'/')) )
+    if ( (prgName=strrchr(argv[0],'/')) )
         prgName++;
-
-    while( (c = getopt(argc, argv, "i:vft:s:m:4p:du:g:")) > 0)
+    else
+    	prgName = argv[0];
+    	
+    while( (c = getopt(argc, argv, "i:vft:s:m:4p:du:g:w")) > 0)
     {
         switch(c)
         {
@@ -531,6 +536,9 @@ int main(int argc, char **argv)
             case 'g':
                 group = optarg;
             break;
+            case 'w':
+                wait_for_if=1;
+            break;
             default:
                 usage(prgName);
             break;
@@ -556,14 +564,13 @@ int main(int argc, char **argv)
     if ( !pid_file )
     {
         set_pid_ownership(user, group, PID_DIR);
-        pid_file = calloc(strlen(PID_DIR)+strlen(prgName)+1,1);
+        pid_file = calloc(strlen(PID_DIR)+strlen(prgName)+strlen(device)+7,1);
         if ( pid_file == NULL )
         {
              syslog(LOG_ERR,"calloc: %s",strerror(errno));
              exit(1);
         }
-        strcpy(pid_file, PID_DIR);
-        strcat(pid_file, prgName);
+        sprintf(pid_file, "%s%s-%s.pid", PID_DIR, prgName, device);
     }
 
     /* check for pid file */
@@ -622,9 +629,10 @@ int main(int argc, char **argv)
     
     syslog(LOG_NOTICE,"started");
 
+do {
     memset(&own_addr,0,sizeof(own_addr));
-    sock = icmp_socket(device, &own_addr);
-
+    sock = icmp_socket(device, wait_for_if, &own_addr);
+    
     if ( sock < 0 )
     {
         syslog(LOG_ERR,"error while opening socket");
@@ -635,5 +643,8 @@ int main(int argc, char **argv)
     syslog(LOG_NOTICE,"enter main loop");
 
     mainloop(sock, outpack, packlen);
+    }
+while ( wait_for_if );
+
     return 0;
 }
