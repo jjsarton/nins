@@ -629,22 +629,24 @@ int main(int argc, char **argv)
     
     syslog(LOG_NOTICE,"started");
 
-do {
-    memset(&own_addr,0,sizeof(own_addr));
-    sock = icmp_socket(device, wait_for_if, &own_addr);
-    
-    if ( sock < 0 )
+    /* if we have a virtual interface, we may wait fot it */
+    do
     {
-        syslog(LOG_ERR,"error while opening socket");
-        return 1;
-    }
+        memset(&own_addr,0,sizeof(own_addr));
+        sock = icmp_socket(device, wait_for_if, &own_addr);
 
-    set_ownership(user,group);
-    syslog(LOG_NOTICE,"enter main loop");
+        if ( sock < 0 )
+        {
+            syslog(LOG_ERR,"error while opening socket");
+            return 1;
+        }
 
-    mainloop(sock, outpack, packlen);
-    }
-while ( wait_for_if );
+        set_ownership(user,group);
+        syslog(LOG_NOTICE,"enter main loop");
+
+        mainloop(sock, outpack, packlen);
+   }
+   while ( wait_for_if );
 
     return 0;
 }

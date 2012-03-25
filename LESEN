@@ -25,3 +25,8 @@ für viele Distribubtionen als fertiges Packet vorhanden ist
 die fehlende "Domäne Such Liste" auch berückdichtigen.
 Bis dahin sollte radvc verwendet werden.
 
+set_route
+---------
+
+Kleinen Hilfdprogramm zur Setzen der Route auf
+einen tinc VPN client.

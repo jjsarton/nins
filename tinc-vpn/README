@@ -1,0 +1,93 @@
+set_route is a little program I use in order to
+set the routing on IPv6 clients which get there
+addresse via stale less automatic addresse configuration
+or dhcp v6.
+
+If the client has allready an IPv6 connection, the
+routing for reaching the VPN protected network can
+only be set if the VPN interface has a global addresse.
+
+set_route check priodically the network interface
+for a global addresse. After the global addresse what
+recognized the parameters for setting the route
+informations are calculated and the necessary
+command is issued and set_route terminate.
+
+tinc client configuration example
+---------------------------------
+
+tinc.conf
+==================================
+Name = mobile-client
+ConnectTo = server
+DeviceType = tap
+Interface = tap0
+Mode = switch
+==================================
+
+tinc-up
+==================================
+ip link set de $INTERFACE up
+set_route -d $INTERFACE
+
+tinc-down
+pkill set_route
+sysctl -w net.ipv6.conf.$INTERFACE.forwarding=0
+ip link set dev $IONTERFACE down
+==================================
+
+tinc server configuration example
+---------------------------------
+
+tinc.conf
+==================================
+Name = server
+DeviceType = tap
+Interface = tap0
+Mode = switch
+DecrementTTL = no
+# for tinc prior v 1.0.17 use the following
+#Forwarding = kernel
+==================================
+
+tinc-up
+==================================
+ip link set dev $INTERFACE  up 
+sleep 1
+ip ad ad 2001:db8:1:2::1/64 dev $INTERFACE 
+ip ro ad  2001:db8:1:2::/64 via 2001:db8:1:2::1 dev $INTERFACE
+
+function startRadvd()
+{
+   cat >/tmp/radvd.conf <<!
+interface $INTERFACE
+{
+       AdvSendAdvert on;
+       MinRtrAdvInterval 30;
+       MaxRtrAdvInterval 60;
+       prefix 2001:db8:1:2::/64
+       {
+           AdvOnLink on;
+           AdvAutonomous on;
+           AdvRouterAddr on;
+       };
+       RDNSS 2001:db8:1:2::1  { };
+       DNSSL home { };
+};      
+!
+    chmod 554 /tmp/radvd.conf
+    sleep 1
+    radvd -p /tmp/radvd.pid -C /tmp/radvd.conf
+}
+==================================
+startRadvd &
+
+tinc-down
+==================================
+pid=`cat /tmp/radvd.pid`
+if [ "x$pid" != "x" ]
+then 
+    kill $pid
+fi
+==================================
+

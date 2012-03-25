@@ -21,3 +21,9 @@ The daemon rdnssd which is provided by many Linux
 distribution don't know at this time the domain search
 list, this will be added on the next version. For now
 you should use radvc on you clients.
+
+set_route
+---------
+
+This programm shall be used by tinc on the client
+and you have an IPv6 tunnel over IPv6.

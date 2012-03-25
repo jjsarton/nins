@@ -479,7 +479,7 @@ int main(int argc, char **argv)
                return 0;
             break;
             default:
-                printf("usage: %s [-f]\n",me);
+                printf("usage: %s [-f] [-r resolver-file] [-d savedir]\n",me);
                 exit(1);
         }
     }

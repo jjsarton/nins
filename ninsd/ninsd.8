@@ -127,15 +127,20 @@ launch ninsd via the link name.
 .TP
 .BR "\-u user_name"
 .B ninsd
-will rund with the given user uid. Updating will not work if the
+will run with the given user uid. Updating will not work if the
 use update method need some rights not provided by the user
 
 .TP
 .BR "\-g group_name"
 .B ninsd
-will rund with the given group gid. Updating will not work if the
+will run with the given group gid. Updating will not work if the
 use update method need some rights not provided by the group
 
+.TP
+.BR "\-w"
+.B ninsd
+will wait for the creation of the given device. This may be
+usefull if the interface is a virtual device as a tap.
 
 
 .SH FILES

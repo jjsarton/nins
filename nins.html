@@ -33,8 +33,8 @@
 		</p>
 		<p>
 			The IPv6 Address can also be assigned by the <strong>dhcpd</strong> server.
-			For this cases we don't need the radvd server. The routing
-			information must also be provided by the DHCP system.
+			The routing informations are always to be provided by the
+			router advertisement, the dhcp-v6 implememtation has some deficiencies.
 		</p>
 		<h2>Name resolution</h2>
 		<p>
@@ -178,13 +178,10 @@
 			For the use within your small office or at home you will benefit
 			from:
 			<ul>
-				<li>Support for name server which work with nsupdate.</li>
-				<li>Support for other name server via scripting.</li>
+				<li>Support for name server which support some kind of update.</li>
 				<li>Support for DNS64/NAT64 with tayga.</li>
 				<li>Access from IPv6/IPv4 to IPv4/IPv6 devices, if tayga
 				   is installed.</li>
-				<li>Use of some DNS Server as unbound and dnsnasq which don't
-				normally allow updating via dhcp-v6 is possible.</li>
 			</ul>
 			<ul>
 				<li>Clients don't need special configuration, only 2 little

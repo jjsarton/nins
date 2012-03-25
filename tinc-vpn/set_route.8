@@ -1,0 +1,134 @@
+.\"
+.\"
+.\"   Authors:
+.\"    Jean-Jacques Sarton		<jj.sarton@t-onlime.de>	 
+.\"
+.\"   This software is Copyright 1996 by the above mentioned author(s), 
+.\"   All Rights Reserved.
+.\"
+.\"   The license which is distributed with this software in the file COPYRIGHT
+.\"   applies to this software.
+.\"
+.\"
+.\"
+.TH set_route 8 "25 March 2012" "v0.1" ""
+.SH NAME
+set_route \- set a static route for device are configured with SLAAC.
+Set_route is intended to be used on tinc based VPN clients. 
+.SH SYNOPSIS
+.B set_route 
+.B \-d device [ \-m mask-bits ]  [ \-M mask-bits ] [ \-s suffix ] [ \-w metric ] [ \-t ]"
+
+.SH DESCRIPTION
+.B set_route
+work together with tincd and is used within the tinc.up script on remote
+client which use SLAAC (State Less Addresse Auto Configuration"
+.T
+If the client has an IPv6 Addresse and a VPN connection must be build
+above this connection, the routing will not work well.
+We must set a route to the peer addresse of the tinc Network device
+and set the tinc device in forwarding mode. Setting the route
+can only be done after the client has got his addresse.
+.T
+.B set_route
+look periodically if the device has got a global addresse and then
+set the forwarding to FALSE and set the  static route
+to the home server.
+ 
+
+.SH OPTIONS
+
+.TP
+.BR "\-i interface"
+This allows to set the name of the VPN network device
+
+.TP
+.BR "\-m net-mask-bits"
+This is the mask for the Server Addresse pool. The default mask a 48
+and can be set to an other value, e.g. 56.
+
+.TP
+.BR "\-m mask-bits"
+The subnet reserved for VPN clients on the server will normally
+be a /64 subnet (default value). You can choose an other value
+with this option.
+
+.TP
+.BR "\-s suffix"
+.B set_route
+expect that the server addresse is <prefix>::1. If this
+is not the case you must set the last part of the addresse herewith.
+
+.TP
+.BR "\-t"
+.br
+This is only for testing. The commands for setting the route will
+not be issued, instead there will be printed out.
+
+.SH EXAMPLES
+.B tinc.conf
+.LP
+Name = alice
+.br
+Mode = switch
+.br
+Interface = tap0
+.br
+ConnectTo = home
+
+.TP
+.B tinc-up
+.LP
+ip set dev tap0 up
+.br
+sleep 1
+.br
+radvc -i /etc/tinc/home/$NETNAME
+.br
+set_route -i $INTERFACE &
+
+.TP
+.B tinc-down
+.LP
+pkill radvc
+.br
+pkill set_route
+.br
+sysctl -w net.ipv6.$INTERFACE..forwarding=0
+.br
+ip link set dev $INTERFACE down
+ 
+.LP
+The commands issued by
+.B set_route
+will, for example, be: 
+.LP 
+sysctl -w net.ipv6.conf.tap0.forwarding=1
+.br
+ip -6 ro ad 2001:db8:1::/48 via 2001:db8:1:2::1 dev tap0 metric 1024
+
+.SH BUGS
+
+There are certainly some bugs. If you find them or have other
+suggestions please contact the author.
+
+.SH "SEE ALSO"
+
+.BR tincd (8),
+.BR tinc.conf (5),
+.BR ip (8),
+.BR sysctl (8),
+.BR radvd.conf (5)
+.BR radvc (8)
+
+
+.SH "LINKS"
+.BR https://github.com/gsliepen/tinc
+.br
+.BR https://github.com/jjsarton/nins
+
+.SH AUTHORS
+
+.nf
+Jean-Jacques Sarton		<jj.sarton@t-onlime.de>
+.fi
