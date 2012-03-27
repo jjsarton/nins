@@ -13,11 +13,11 @@
 .\"
 .TH set_route 8 "25 March 2012" "v0.1" ""
 .SH NAME
-set_route \- set a static route for device are configured with SLAAC.
-Set_route is intended to be used on tinc based VPN clients. 
+Helper in order to allow SLAAC for IPv6 with tinc.
+
 .SH SYNOPSIS
 .B set_route 
-.B \-d device [ \-m mask-bits ]  [ \-M mask-bits ] [ \-s suffix ] [ \-w metric ] [ \-t ]"
+.B \-i interface [ \-m mask-bits ]  [ \-M mask-bits ] [ \-s suffix ] [ \-w metric ] [ \-f script ]"
 
 .SH DESCRIPTION
 .B set_route
@@ -32,9 +32,20 @@ can only be done after the client has got his addresse.
 .T
 .B set_route
 look periodically if the device has got a global addresse and then
-set the forwarding to FALSE and set the  static route
-to the home server.
- 
+call the script /etc/tinc/NETNAME/tinc-slaac with the following
+supplementary environment variables:
+.br
+PREFIX_NET IPv6 prefix for the whole local network
+.br
+MASK_NET typically 48 (default) for setting the route to the server
+PREFIX_SUBNET prefix for the addresse of the server
+.br
+SUFFIX  suffix for the address of the server.
+.br
+METRIC default to 1024. You may need this for some strange configurations. 
+.br
+The server addresse is normally the concatenation of the PREFIX_SUBNET
+and the SUFFIX
 
 .SH OPTIONS
 
@@ -48,7 +59,7 @@ This is the mask for the Server Addresse pool. The default mask a 48
 and can be set to an other value, e.g. 56.
 
 .TP
-.BR "\-m mask-bits"
+.BR "\-M mask-bits"
 The subnet reserved for VPN clients on the server will normally
 be a /64 subnet (default value). You can choose an other value
 with this option.
@@ -60,10 +71,11 @@ expect that the server addresse is <prefix>::1. If this
 is not the case you must set the last part of the addresse herewith.
 
 .TP
-.BR "\-t"
+.BR "\-f script"
 .br
-This is only for testing. The commands for setting the route will
-not be issued, instead there will be printed out.
+Path and name for the scriüt which is to be launched.
+.br
+Default is /etc/tinf/INTERFACE/tinc-slaac
 
 .SH EXAMPLES
 .B tinc.conf
@@ -88,6 +100,12 @@ radvc -i /etc/tinc/home/$NETNAME
 set_route -i $INTERFACE &
 
 .TP
+.B tinc-slaac
+.LP
+ip -6 route add $PREFIX_NET/$MASK_NET via $PREFIX_SUBNET$SUFFIX dev $INTERFACE metric $METRIC 
+sysctl -w net.ipv6.$INTERFACE.forwarding=1
+
+.TP
 .B tinc-down
 .LP
 pkill radvc
@@ -98,14 +116,6 @@ sysctl -w net.ipv6.$INTERFACE..forwarding=0
 .br
 ip link set dev $INTERFACE down
  
-.LP
-The commands issued by
-.B set_route
-will, for example, be: 
-.LP 
-sysctl -w net.ipv6.conf.tap0.forwarding=1
-.br
-ip -6 ro ad 2001:db8:1::/48 via 2001:db8:1:2::1 dev tap0 metric 1024
 
 .SH BUGS
 

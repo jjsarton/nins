@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
 #include <getopt.h>
@@ -34,7 +35,6 @@ static int wait_for_iface(char *name, struct in6_addr *addr, int local)
    struct ifaddrs *ifa = NULL;
    struct ifaddrs *pt;
    int family=0;
-   char ad[INET6_ADDRSTRLEN];
    int link_local;
    int if_found = 0;
 
@@ -119,7 +119,7 @@ static void mask_addr(struct in6_addr *addr, int bits)
 
 static void usage(char *me)
 {
-    printf("Usage: %s [-i interface] [-n net-mask-bits]  [-m subnet-mask-bits] [-s suffix] [-w metric] [-t]\n",
+    printf("Usage: %s [-i interface] [-n net-mask-bits]  [-m subnet-mask-bits] [-s suffix] [-w metric] [-f script_to_call]\n",
             me);
 }
 
@@ -135,17 +135,16 @@ int main(int argc, char **argv)
     char *own_mask = "64";
     char *suffix = "1";
     char *metric = "1024";
+    char *script_name = NULL;
     int res;
     int bits;
     char *me;
     int c;
-    int verbose = 0;
-    int test = 0;
 
     if ( (me=strrchr(argv[0], '/')) ) me++;
     else me =  argv[0];
 
-    while((c=getopt(argc, argv,"i:n:m:s:tv")) > 0 )
+    while((c=getopt(argc, argv,"i:n:m:s:f:")) > 0 )
     {
          switch(c)
          {
@@ -153,8 +152,8 @@ int main(int argc, char **argv)
              case 'n': mask = optarg; break;
              case 'm': own_mask = optarg; break;
              case 's': suffix = optarg; break;
-             case 't': test = 1; verbose = 1; break;
              case 'w': metric = optarg; break;
+             case 'f': script_name = optarg; break;
             default: usage(me); return 0;
         }
     }
@@ -163,43 +162,43 @@ int main(int argc, char **argv)
     {
         return 1;
     }
-
-    /* set forwarding to 1 for our tap device this will avoid
-     * that the default route via the local link addresse is set again
-     * and disturbe our rounting
+    
+    /* we knowm the global addresse assigned to our interface
+     * and we can now prepare the values to pass to our script
+     * via the environment,
      */
-
-    snprintf(cmd, sizeof(cmd),"sysctl -w net.ipv6.conf.%s.forwarding=1",device);
-    if ( verbose )
-    {
-        printf("%s\n",cmd);
-    }
-    if ( !test )
-    {
-        system(cmd);
-    }
-
-    memcpy(&addr, &own_addr, sizeof(addr));
-
-    /* build ip command */
+     
+    /* calculate the network mask */
     bits=atoi(own_mask);
     mask_addr(&own_addr, bits);
+    inet_ntop(AF_INET6, &own_addr, oad, sizeof(oad));
 
+    /* calculate the subnet mask  for setting our gateway addresse */
     bits=atoi(mask);
+    inet_ntop(AF_INET6, &addr, ad, sizeof(ad));
     mask_addr(&addr, bits);
 
-    inet_ntop(AF_INET6, &own_addr, oad, sizeof(oad));
-    inet_ntop(AF_INET6, &addr, ad, sizeof(ad));
-    snprintf(cmd,sizeof(cmd),"ip -6 ro ad %s/%s via %s%s dev %s metric %s",ad, mask, oad, suffix, device, metric);
+    /* set the environment to pass to our script */
+    setenv("PREFIX_NET",ad,1);
+    setenv("MASK_NET",mask,1);
+    setenv("PREFIX_SUBNET",oad,1);
+    setenv("SUFFIX",suffix,1);
+    setenv("METRIC",metric,1);
 
-    if ( verbose )
+    if ( script_name == NULL )
     {
-        printf("%s\n",cmd);
+         /* set the script name */
+         char *netname = getenv("NETNAME");
+         snprintf(cmd,sizeof(cmd),"/etc/tinc/%s/tinc-slaac",netname?netname:"");
     }
-    if ( ! test )
+    else
     {
-        system(cmd);
+        snprintf(cmd, sizeof(cmd), "%s", script_name);
     }
+    
+    execl(cmd,cmd,NULL);
+    perror("execl");
 
+    /* execl() will, on success, not return, but we want't to avoid cc/gcc complain */
     return 0;
 }

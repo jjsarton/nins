@@ -1,4 +1,4 @@
-CFLAGS=-O2 -s
+CFLAGS=-O2 -s -Wall
 MANPATH=/usr/share/man/
 
 all: set_route
