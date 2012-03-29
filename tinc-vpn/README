@@ -1,3 +1,6 @@
+set_route
+---------
+
 set_route is a little program I use in order to
 set the routing on IPv6 clients which get there
 addresse via stale less automatic addresse configuration
@@ -107,3 +110,25 @@ then
 fi
 ==================================
 
+startVPN.sh
+-----------
+
+startVPN.sh ist a little script which can be
+launched from a starter within the Desktop or
+the taskbar.
+
+startVPN.sh can be located anywhere on your
+system eg ~/bin and must be executable.
+
+startVPN.sh query for the desired action start
+or stop the VPN connection and then launch
+a graphical tool (if available) in order to
+perform the furteher actions as root.
+
+On start a persistent tap device will be created
+so that after stopping abd starting again the
+VPN channel, the global IPv6 shall remain the same.
+This is usefull if you use SLAAC ( State Less
+Addresse Auto Comnfiguration" in order to obtain
+the device addresse and use ninfod (on the client)
+and ninsd (on the server),
