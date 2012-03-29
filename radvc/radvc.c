@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <errno.h>
 #include <signal.h>
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -45,6 +46,8 @@
 static char *resolv_conf = "/etc/resolv.conf";
 static char *save_dir = "/tmp";
 static char *save_file = "/tmp";
+static char *pid_file = NULL;
+
 static char domain[4096];
 static char ns_server[256];
 static time_t resolv_time = 0;
@@ -67,6 +70,22 @@ static void sig_handler(int sig)
     /* restore the resolv.conf file */
     cp(save_file, resolv_conf);
     unlink(save_file);
+    if ( pid_file )
+    {
+        pid_t my_pid = getpid();
+	pid_t pid;
+	FILE *fp;
+	if ( (fp=fopen(pid_file,"r")) )
+	{
+            if ( fscanf(fp,"%d\n",&pid) == 1 )
+	    {
+	        if ( pid == my_pid )
+		{
+		    unlink(pid_file);
+		}
+	    }
+	}
+    }
     exit(0);
 }
 
@@ -451,17 +470,58 @@ static int open_socket(void)
     return sock;
 }
 
+#ifndef __linux__
+#define daemon(a,b) m_daemon(a,b)
+static int m_daemon(int nochdir, int noclose)
+{
+    pid_t pid ,sid; 
+    pid = fork(); 
+    if (pid < 0)
+    {
+        return -1; /* error */
+    } 
+    if (pid > 0) /* parent */
+    {
+        exit(0);
+    } 
+    /* child process */
+
+    sid = setsid();
+    if (sid < 0) 
+    {
+         return -1;
+    }
+    
+    if ( !noclose )
+    {
+        close(STDIN_FILENO);
+        close(STDOUT_FILENO);
+        close(STDERR_FILENO);
+    }
+
+    if ( !nochdir )
+    {
+        chdir("/");
+        close(STDOUT_FILENO);
+    }
+    
+    return 0;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     int foreground = 0;
     int c;
     int sock;
+    pid_t pid;
+    FILE *fp = NULL;
 
     me = strchr(argv[0],'/');
     if ( me == NULL ) me = argv[0];
     else me++;
 
-    while((c = getopt(argc, argv, "fvd:r:")) > 0)
+    while((c = getopt(argc, argv, "fvd:r:p:")) > 0)
     {
         switch (c)
         {
@@ -474,12 +534,15 @@ int main(int argc, char **argv)
             case 'd':
                save_dir = optarg;
             break;
+            case 'p':
+               pid_file = optarg;
+            break;
             case 'v':
                printf("%s: version %s\n",me,version);
                return 0;
             break;
             default:
-                printf("usage: %s [-f] [-r resolver-file] [-d savedir]\n",me);
+                printf("usage: %s [-f] [-r resolver-file] [-d savedir] [-p pid_file]\n",me);
                 exit(1);
         }
     }
@@ -510,17 +573,53 @@ int main(int argc, char **argv)
         fprintf(stderr,"%s: absolute path required for the resolv.conf file\n",me);
         exit(1);
     }
+
+    umask(07);
+
+    if ( pid_file && access(pid_file,R_OK) == 0 )
+    {
+        /* check if the process is running */
+        fp=fopen(pid_file,"r");
+        if ( fp )
+        {
+            if ( fscanf(fp, "%d",&pid) == 1 )
+            {
+                 if ( kill(pid,0) == 0 )
+                 {
+                     fprintf(stderr, "%s: error %s exist\n",me, pid_file);
+                     exit(1);
+                 }
+            }
+            fclose(fp);
+        }
+        else
+        {
+             fprintf(stderr,"%s:%s  %s",me,pid_file, strerror(errno));
+             exit(1);
+        }
+    }
+
     set_signals();
+
     if ( ! foreground )
     {
-        if (daemon(0, 0) < 0)
+        if (daemon(1, 0) < 0)
         {
             perror("daemon");
             exit(1);
         }
     }
 
-    
+    if ( pid_file )
+    {
+	if ( (fp=fopen(pid_file,"w")) )
+	{
+	     pid = getpid();
+	     fprintf(fp,"%d\n",pid);
+	     fclose(fp);
+	}
+    }
+
     mainloop(sock, resolv_conf, save_file);
     return 0;
 }

@@ -7,7 +7,7 @@ If the client has allready an IPv6 connection, the
 routing for reaching the VPN protected network can
 only be set if the VPN interface has a global addresse.
 
-set_route check priodically the network interface
+set_route check periodically the network interface
 for a global addresse. After the global addresse what
 recognized the parameters for setting the route
 informations are calculated and the necessary
@@ -23,18 +23,34 @@ ConnectTo = server
 DeviceType = tap
 Interface = tap0
 Mode = switch
+# for tinc prior v 1.0.17 use the following
+#Forwarding = kernel
 ==================================
 
 tinc-up
 ==================================
 ip link set de $INTERFACE up
-set_route -d $INTERFACE
+radvc -p /etc/tinc/$NETNAME/radvc.pid
+set_route -d $INTERFACE !
+ech0 $! > /etc/tinc/$NETNAME/set_route.pid
+==================================
 
 tinc-down
-pkill set_route
-sysctl -w net.ipv6.conf.$INTERFACE.forwarding=0
-ip link set dev $IONTERFACE down
 ==================================
+if [ -f /etc/tinc/$NETNAME/radvc.pid ]
+then
+   kill `cat /etc/tinc/$NETNAME/radvc.pid`
+fi
+
+if [ -f /etc/tinc/$NETNAME/set_route.pid ]
+then
+   kill `cat /etc/tinc/$NETNAME/set_route.pid`
+fi
+
+sysctl -w net.ipv6.conf.$INTERFACE.forwarding=0
+ip link set dev $INTERFACE down
+==================================
+
 
 tinc server configuration example
 ---------------------------------
@@ -65,7 +81,7 @@ interface $INTERFACE
        AdvSendAdvert on;
        MinRtrAdvInterval 30;
        MaxRtrAdvInterval 60;
-       prefix 2001:db8:1:2::/64
+       prefix 2001:db8:1:1::/64
        {
            AdvOnLink on;
            AdvAutonomous on;

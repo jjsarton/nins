@@ -16,7 +16,7 @@
 radvc \- complete / generate a resolv.conf file according to radvd information
 .SH SYNOPSIS
 .B radvc
-.B "[ \-f ] [ \-v ] [ \-r resolv-conf-file]"
+.B "[ \-f ] [ \-v ] [ \-r resolv-conf-file] [ \-d save-directory ] [ \-p pid-file ]" 
 
 .SH DESCRIPTION
 .B radvc
@@ -45,14 +45,18 @@ The server is started in foreground and some debug messages will be printed
 out.
 
 .TP
-.BR "\-r"
+.BR "\-r resolv-conf-file"
 specify the file to be created. default is /etc/resolv.conf.
 
 
 .TP
-.BR "\-d"
+.BR "\-d save-directory"
 specify the directory where /etc/resolv.conf is temporary saved. This allows
-us to restore the old configurations file. Default is /tmp
+us to restore the old configurations file. Default is /tmp.
+
+.TP
+.BR "\-p pid-file"
+create a pid file,
 
 .TP
 .BR "\-v"
