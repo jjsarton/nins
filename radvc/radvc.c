@@ -18,6 +18,7 @@
 #include <time.h>
 #include <errno.h>
 #include <signal.h>
+#include <ctype.h>
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -224,13 +225,62 @@ static int copy_name_server(char *in, char *out, int sz)
     return found;
 }
 
+static int copy_search(char *in, char *out, int sz, char *domain)
+{
+    int found = 0;
+    char *s;
+    char *t;
+    char *d;
+    int dl = dl = strlen(domain);
+    if ( ( (s=strstr(in,"search ")) == in)  && s == in )
+    {
+        if ( strlen(in) < sz-1-dl )
+	{
+	    s = s + 6;
+	    t = out;
+	    d = strstr(s, domain);
+	    if (!d )
+	    {
+	        strcpy(t, s);
+	    }    
+            else
+	    {
+	        if ( isspace(d[-1]) && (d[dl] == '\0' || isspace(d[dl])) )
+		{
+		     // copy part before domain */
+		     s++;
+                     strncpy(t, s, d-s);
+		     // advance pointer
+		     t += d-s;
+		     s += d-s+dl+1;
+		     strcpy(t, s);
+		}
+		else
+		{
+		     strcpy(t, s);
+		}
+	    }
+            
+	}
+        else
+	{
+            strcpy(out,in);
+	}
+        out[sz-1]='\0';
+        found = 1;
+    }
+    return found;
+}
+
 static int mod_resolv_conf(const char *resolv_conf, char *save_file, char *domain, char *ns_server)
 {
     struct  stat act_stat;
     char    nameserver[2][256];
+    char    old_search[256];
     int idx = 0;
 
     memset(nameserver, 0, sizeof(nameserver));
+    memset(old_search, 0, sizeof(old_search));
     if ( *domain && *resolv_conf )
     {
         if ( stat(resolv_conf, &act_stat) == 0 )
@@ -267,6 +317,7 @@ static int mod_resolv_conf(const char *resolv_conf, char *save_file, char *domai
                                 idx++;
                             }
                         }
+			copy_search(buf, old_search, sizeof(old_search), domain);
                     }
                     fclose(fp);
 
@@ -282,8 +333,8 @@ static int mod_resolv_conf(const char *resolv_conf, char *save_file, char *domai
 
                         if ( fp )
                         {
-                            printf("%s: set search %s\n",me,domain);
-                            fprintf(fp, "search %s\n",domain);
+                            printf("%s: set search %s %s\n",me,domain, old_search);
+                            fprintf(fp, "search %s %s\n",domain, old_search);
                             printf("%s: set nameserver %s\n",me,ns_server);
                             fprintf(fp, "nameserver %s\n",ns_server);
                             resolv_time = time(NULL);

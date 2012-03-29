@@ -1,8 +1,10 @@
 Radvc
 -----
 
-Radvc is a little helper which will modify or generate the file
-/etc/resolv.conf.
+Radvc is a little helper which will generate a new
+/etc/resolv.conf file. In order to avoid problems if
+we have multiple instance of radvc we will include
+the search ans servername entries from previous file. 
 
 This programm shall compile on all Linux based systems.
 
