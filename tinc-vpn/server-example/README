@@ -1,0 +1,28 @@
+The script tinc-up and tinc-down are example
+which shall work for Linux systems.
+
+The file tinc-up try to get all necessary parameters
+from the device attached on the local network.
+the expected configuration is as folloe:
+
+The interface what set up and the addresse what
+set with for exampe:
+
+ip ad ad 2001:db8:beef::1 dev eth0
+
+The route what set with
+
+ip ro ad  2001:db8:beef::/64 via 2001:db8:beef::1 dev eth0
+
+There are not more than a global address and if so the route
+for furher addresse what not set via this other addresss.
+
+If this don't correspond to yout system the script will fail
+
+You must also set the following variables
+
+MN_IF=eth0             # the main interface to the LAN
+VPN_SUBNET_NR=3        # the subnet forseen for VPN
+VPN_SERVER_SUFFIX=1    # The adresse of the VPN tap is the <prefix>::$VPN_SERVER_SUFFIX
+SEARCH_LIST=localnet   # The domain name for your LAN
+

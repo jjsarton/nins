@@ -1,0 +1,16 @@
+#!/bin/sh
+# File tinc-down
+
+killme()
+{
+    pid=`cat /tmp/$1.pid`
+    if [ "x$pid" != "x" ]
+    then 
+        kill $pid
+    fi
+}
+
+ip link set dev $INTERFACE down
+
+killme radvd
+killme ninsd

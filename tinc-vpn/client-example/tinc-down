@@ -1,0 +1,16 @@
+#!/bin/sh
+# File: tinc-down
+if [ -f /etc/tinc/$NETNAME/set_route.pid ]
+then
+   kill `cat /etc/tinc/$NETNAME/set_route.pid`
+   rm -f /etc/tinc/$NETNAME/set_route.pid
+fi
+
+sysctl -w net.ipv6.conf.$INTERFACE.forwarding=0
+
+ip link set dev $INTERFACE down
+
+if [ -f /etc/tinc/$NETNAME/radvc.pid ]
+then
+   kill `cat /etc/tinc/$NETNAME/radvc.pid`
+fi

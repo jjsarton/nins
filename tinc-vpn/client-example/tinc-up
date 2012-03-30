@@ -1,0 +1,6 @@
+#!/bin/sh
+# File tinc-up
+ip link set dev $INTERFACE up
+radvc -d /etc/tinc/$NETNAME/$INTERFACE -p /etc/tinc/$NETNAME/radvc.pid
+set_route -i $INTERFACE &
+echo $! > /etc/tinc/$NETNAME/$INTERFACE -p /etc/tinc/$NETNAME/set_route.pid

@@ -1,0 +1,42 @@
+The script tinc-up and tinc-down are for
+the VPN client.
+
+This will make shure that if the client is
+not configured with a static address but
+via the SLAAC (State Less Automatic Address Congiguration)
+or DHCP v6 the route to the server VPN interface
+is set correctly.
+
+The binary radvc listen on Router Advertisement and,
+if the expected information are delivered, create a
+new resolv.conf file which allows to use the LAN name
+server.
+
+The binary set_route check if the VPN interface
+has got a global IPv6 addresse and then call the
+script /etc/tinc/NETNAME/tinc-slaac which will
+set forwarding for this interface and set the
+route for the whole LAN network (typically /48 or /56).
+The gateway addresse is expected to be the
+/64 subnet for the VPN interface and a fixed suffix
+
+64 SUBNET = 2001:db8:1234:4568::/64
+SERVER ADDRESSE 2001:db8:1234:5678::abcd
+
+The VPN slient netwotk device will get for example
+the addresse 2001:db8:1234:4568:1:2ff:fe03:4
+
+The /48 subnet will be 2001:db8:1234::
+The /64 subnet will be 2001:db8:1234:4568::
+
+The server addresse (gateway can now be set to
+2001:db8:1234:4568::abcd
+
+The needed variable are passed via the environment
+from the binary set_route. You must foreseen the
+correct value if there don't correspond to the
+expected value. See set_route.8.
+
+
+We need
+

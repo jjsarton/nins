@@ -1,0 +1,6 @@
+#!/bin/sh
+# File: tinc-slaac
+
+sysctl -w net.ipv6.conf.$INTERFACE.forwarding=1;
+
+ip route add $PREFIX_NET/$MASK_NET via $PREFIX_SUBNET$SUFFIX dev $INTERFACE
