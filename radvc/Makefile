@@ -4,7 +4,7 @@ ADDLIB=
 
 CC=gcc
 CCOPT=-D_GNU_SOURCE -O2 -Wstrict-prototypes -Wall
-CFLAGS=$(CCOPT) $(GLIBCFIX) $(DEFINES) 
+CFLAGS=$(CCOPT) $(GLIBCFIX) $(DEFINES)
 
 all: radvc
 

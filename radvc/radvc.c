@@ -11,7 +11,7 @@
  * put our name server as the first name server if there are more
  * name server.
  */
- 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -25,11 +25,16 @@
 #include <sys/stat.h>
 #include <sys/poll.h>
 #include <getopt.h>
+#include <ifaddrs.h>
+#if defined __linux__
+#define _GNU_SOURCE 1 /* for pktinfo */
+#endif
 #include <netinet/ip6.h>
 #include <netinet/icmp6.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include "version.h"
+#include <net/if.h>
 
 #if ! defined ND_OPT_RNDSS_INFORMATION
 #define ND_OPT_RNDSS_INFORMATION 25
@@ -39,6 +44,10 @@
 #define ND_OPT_DNSSL_INFORMATION 31
 #endif
 
+/* for VPN interface check */
+#define NO_VPN  0
+#define HAS_VPN 1
+#define IS_VPN  2
 
 /* a few globale variable for handling of the
  * resolv.conf file
@@ -47,7 +56,11 @@
 static char *resolv_conf = "/etc/resolv.conf";
 static char *save_dir = "/tmp";
 static char *save_file = "/tmp";
+static char *save_file_vpn = "/tmp";
 static char *pid_file = NULL;
+static char *vpn_interface = NULL;
+static int   vpn_idx=0;
+static int   vpn_resolv_stored=0;
 
 static char domain[4096];
 static char ns_server[256];
@@ -66,26 +79,38 @@ typedef struct ra_xxx_info_head
     uint32_t lifetime;
 } ra_xxx_head_t;
 
+static void restore_resolv_conf(char *saved_file, char *resolv_conf)
+{
+    cp(saved_file, resolv_conf);
+    unlink(saved_file);
+}
+
 static void sig_handler(int sig)
 {
     /* restore the resolv.conf file */
-    cp(save_file, resolv_conf);
-    unlink(save_file);
+    if ( access(save_file, F_OK) == 0 )
+    {
+        restore_resolv_conf(save_file, resolv_conf);
+    }
+    else if (vpn_interface && access(save_file_vpn, F_OK) == 0 )
+    {
+        restore_resolv_conf(save_file_vpn, resolv_conf);
+    }
     if ( pid_file )
     {
         pid_t my_pid = getpid();
-	pid_t pid;
-	FILE *fp;
-	if ( (fp=fopen(pid_file,"r")) )
-	{
+        pid_t pid;
+        FILE *fp;
+        if ( (fp=fopen(pid_file,"r")) )
+        {
             if ( fscanf(fp,"%d\n",&pid) == 1 )
-	    {
-	        if ( pid == my_pid )
-		{
-		    unlink(pid_file);
-		}
-	    }
-	}
+            {
+                if ( pid == my_pid )
+                {
+                    unlink(pid_file);
+                }
+            }
+        }
     }
     exit(0);
 }
@@ -235,37 +260,37 @@ static int copy_search(char *in, char *out, int sz, char *domain)
     if ( ( (s=strstr(in,"search ")) == in)  && s == in )
     {
         if ( strlen(in) < sz-1-dl )
-	{
-	    s = s + 6;
-	    t = out;
-	    d = strstr(s, domain);
-	    if (!d )
-	    {
-	        strcpy(t, s);
-	    }    
+        {
+            s = s + 6;
+            t = out;
+            d = strstr(s, domain);
+            if (!d )
+            {
+                strcpy(t, s);
+            }    
             else
-	    {
-	        if ( isspace(d[-1]) && (d[dl] == '\0' || isspace(d[dl])) )
-		{
-		     // copy part before domain */
-		     s++;
+            {
+                if ( isspace(d[-1]) && (d[dl] == '\0' || isspace(d[dl])) )
+                {
+                     // copy part before domain */
+                     s++;
                      strncpy(t, s, d-s);
-		     // advance pointer
-		     t += d-s;
-		     s += d-s+dl+1;
-		     strcpy(t, s);
-		}
-		else
-		{
-		     strcpy(t, s);
-		}
-	    }
+                     // advance pointer
+                     t += d-s;
+                     s += d-s+dl+1;
+                     strcpy(t, s);
+                }
+                else
+                {
+                     strcpy(t, s);
+                }
+            }
             
-	}
+        }
         else
-	{
+        {
             strcpy(out,in);
-	}
+        }
         out[sz-1]='\0';
         found = 1;
     }
@@ -317,7 +342,7 @@ static int mod_resolv_conf(const char *resolv_conf, char *save_file, char *domai
                                 idx++;
                             }
                         }
-			copy_search(buf, old_search, sizeof(old_search), domain);
+                        copy_search(buf, old_search, sizeof(old_search), domain);
                     }
                     fclose(fp);
 
@@ -392,7 +417,7 @@ static int build_search_list(ra_xxx_head_t *hd)
     return 1;
 }
 
-static int decode_router_advertisement(struct icmp6_hdr *icmph, int len)
+static int decode_router_advertisement(struct icmp6_hdr *icmph, int len, int vpn_state)
 {
     uint8_t *list;
     struct nd_opt_hdr *opt_hdr;
@@ -415,11 +440,113 @@ static int decode_router_advertisement(struct icmp6_hdr *icmph, int len)
         data += opt_hdr->nd_opt_len * 8;
         len  -= opt_hdr->nd_opt_len * 8;
     }
-    if ( *domain && !*ns_server)
+    if ( *domain && *ns_server)
     {
-        mod_resolv_conf(resolv_conf, save_file, domain,  ns_server);
+        if ( vpn_state == NO_VPN )
+        {
+            if (vpn_resolv_stored == 0 )
+            {
+                mod_resolv_conf(resolv_conf, save_file, domain,  ns_server);
+            }
+            else if ( vpn_interface )
+            {
+                restore_resolv_conf(save_file_vpn,resolv_conf);
+                vpn_resolv_stored = 0;
+            }
+        }
+        else if ( vpn_state == IS_VPN )
+        {
+            mod_resolv_conf(resolv_conf, save_file_vpn, domain,  ns_server);
+            vpn_resolv_stored = 1;
+        }
     }
+
     return 1;
+}
+
+static int check_for_vpn(int idx)
+{
+    struct ifaddrs *ifa = NULL;
+    struct ifaddrs *pt;
+    int if_found = 0;
+    int res = NO_VPN;
+
+    if ( vpn_interface == NULL )
+    {
+       return NO_VPN;
+    }
+
+    if ( vpn_idx == 0 && vpn_interface )
+    {
+        vpn_idx = if_nametoindex (vpn_interface);
+    }
+
+    /* check if the vpn interface is active */
+    if ( getifaddrs(&ifa) )
+    {
+        perror("getifaddrs");
+    }
+
+    /* check state for VPN */
+    pt = ifa;
+    while(pt)
+    {
+        if ( strcmp(pt->ifa_name, vpn_interface) == 0 )
+        {
+            struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)pt->ifa_addr;
+            int family = sa6? sa6->sin6_family : -1;
+            if ( family == AF_INET6 )
+            {
+                int link_local = IN6_IS_ADDR_LINKLOCAL(&sa6->sin6_addr);
+                int loopback = IN6_IS_ADDR_LOOPBACK(&sa6->sin6_addr);
+
+                if ( !link_local && !loopback )
+                {
+                    if_found = 1;
+                    break;
+                }
+            }
+        }
+        pt = pt->ifa_next;
+    }
+    if ( ifa )
+    {
+        freeifaddrs(ifa);
+    }
+
+    /* vpn interfave found and active */
+    if ( if_found && idx == vpn_idx )
+    {
+        res = IS_VPN;
+    }
+    if ( if_found && idx != vpn_idx )
+    {
+        res = HAS_VPN;
+    }
+
+    if ( !if_found )
+    {
+        /* no vpn interface active */
+        if ( vpn_resolv_stored )
+        {
+            /* actual resolv.conf wrong */
+            /* restore to previous */
+            if ( access(save_file,R_OK) == 0)
+            {
+                restore_resolv_conf(save_file, resolv_conf);
+                vpn_resolv_stored = 0;
+            }
+            else if (vpn_interface && access(save_file_vpn,R_OK) == 0)
+            {
+                restore_resolv_conf(save_file_vpn, resolv_conf);
+                vpn_resolv_stored = 0;
+            }
+        }
+        vpn_idx = 0;
+        res = NO_VPN;
+    }
+
+   return res;
 }
 
 static int parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *tv)
@@ -427,20 +554,29 @@ static int parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *t
     unsigned char *buf = msg->msg_iov->iov_base;
     struct cmsghdr *c;
     struct icmp6_hdr *icmph;
+    int idx = 0;
+    struct in6_pktinfo *pkt;
+    int vpn_state = NO_VPN;
 
-    for (c = CMSG_FIRSTHDR(msg); c; c = CMSG_NXTHDR(msg, c)) {
+    for (c = CMSG_FIRSTHDR(msg); c; c = CMSG_NXTHDR(msg, c))
+    {
         if (c->cmsg_level != SOL_IPV6)
             continue;
-        switch(c->cmsg_type) {
-        case IPV6_HOPLIMIT:
+        switch(c->cmsg_type)
+        {
+            case IPV6_HOPLIMIT:
 #ifdef IPV6_2292HOPLIMIT
-        case IPV6_2292HOPLIMIT:
+            case IPV6_2292HOPLIMIT:
 #endif
             if (c->cmsg_len < CMSG_LEN(sizeof(int)))
                 continue;
+            break;
+            case IPV6_PKTINFO:
+                pkt = (struct in6_pktinfo *)CMSG_DATA(c);
+                idx = pkt->ipi6_ifindex;
+            break;
         }
     }
-
 
     /* Now the ICMP part */
 
@@ -451,8 +587,15 @@ static int parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *t
     switch (icmph->icmp6_type)
     {
         case ND_ROUTER_ADVERT:
-            printf("%s: got ND_ROUTER_ADVERT\n",me);
-            decode_router_advertisement(icmph, cc);
+            printf("%s: got ND_ROUTER_ADVERT if %d\n",me, idx);
+            if (idx )
+            {
+                vpn_state = check_for_vpn(idx);
+            }
+            if ( vpn_state == IS_VPN || (vpn_state == NO_VPN && !vpn_resolv_stored) )
+            {
+                decode_router_advertisement(icmph, cc, vpn_state);
+            }
         break;
     }
     return 0;
@@ -467,13 +610,16 @@ static int mainloop(int sock, const char *resolv_conf, char *save_file)
     int cc;
     int polling = 0;;
     struct pollfd pollfd;
+    char control[sizeof(struct in6_pktinfo)<<1];
+
     pollfd.fd = sock;
     pollfd.events = POLLIN;
     pollfd.revents = 0;
 
+
     for(;;)
     {
-        poll(&pollfd, 1, 2000);
+        poll(&pollfd, 1, 1000);
         if ( (pollfd.revents & POLLIN) == POLLIN )
         {
             iov.iov_len = sizeof(ans_data);
@@ -483,17 +629,13 @@ static int mainloop(int sock, const char *resolv_conf, char *save_file)
             msg.msg_namelen = sizeof(addrbuf);
             msg.msg_iov = &iov;
             msg.msg_iovlen = 1;
-            msg.msg_control = NULL;
-            msg.msg_controllen = 0;
+            msg.msg_control = control;
+            msg.msg_controllen = sizeof(control);;
             cc = recvmsg(sock, &msg, polling);
             if (cc > 8)
             {
                 parse_reply(&msg, cc, addrbuf, NULL);
             }
-        }
-        else if ( *domain && *ns_server)
-        {
-            mod_resolv_conf(resolv_conf, save_file, domain, ns_server);
         }
     }
     return 0;
@@ -510,9 +652,18 @@ static int open_socket(void)
         if (setsockopt(sock, IPPROTO_ICMPV6, ICMP6_FILTER, &filter, sizeof(struct icmp6_filter))<0)
         {
             perror("setsockopt");
-        close(sock);
+            close(sock);
             sock=-1;
         }
+            int on = 1;
+            if ( setsockopt(sock,IPPROTO_IPV6, IPV6_RECVPKTINFO, &on, sizeof(on)) < 0
+#ifdef IPV6_2292PKTINFO
+                 && setsockopt(sock, IPPROTO_IPV6, IPV6_2292PKTINFO, &on, sizeof(on)) < 0 
+#endif
+               )
+            {
+                perror( "setsockopt");
+            }
     }
     else
     {
@@ -572,7 +723,7 @@ int main(int argc, char **argv)
     if ( me == NULL ) me = argv[0];
     else me++;
 
-    while((c = getopt(argc, argv, "fvd:r:p:")) > 0)
+    while((c = getopt(argc, argv, "fvd:r:p:i:")) > 0)
     {
         switch (c)
         {
@@ -587,6 +738,9 @@ int main(int argc, char **argv)
             break;
             case 'p':
                pid_file = optarg;
+            break;
+            case 'i': /* vpn interface (special handle if set */
+                vpn_interface = optarg;
             break;
             case 'v':
                printf("%s: version %s\n",me,version);
@@ -615,8 +769,22 @@ int main(int argc, char **argv)
         }
         else
         {
-        perror("calloc");
+            perror("calloc");
             exit(1);
+        }
+        if ( vpn_interface )
+        {
+            c = strlen(save_dir)+1+ strlen(s)+4;
+            save_file_vpn = calloc(c,1);
+            if ( save_file_vpn )
+            {
+                sprintf(save_file_vpn, "%s%s.vpn",save_dir, s);
+            }
+            else
+            {
+                perror("calloc");
+                exit(1);
+            }
         }
     }
     else
@@ -663,12 +831,12 @@ int main(int argc, char **argv)
 
     if ( pid_file )
     {
-	if ( (fp=fopen(pid_file,"w")) )
-	{
-	     pid = getpid();
-	     fprintf(fp,"%d\n",pid);
-	     fclose(fp);
-	}
+        if ( (fp=fopen(pid_file,"w")) )
+        {
+             pid = getpid();
+             fprintf(fp,"%d\n",pid);
+             fclose(fp);
+        }
     }
 
     mainloop(sock, resolv_conf, save_file);

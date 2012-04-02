@@ -16,7 +16,7 @@
 radvc \- complete / generate a resolv.conf file according to radvd information
 .SH SYNOPSIS
 .B radvc
-.B "[ \-f ] [ \-v ] [ \-r resolv-conf-file] [ \-d save-directory ] [ \-p pid-file ]" 
+.B "[ \-f ] [ \-v ] [ \-r resolv-conf-file] [ \-d save-directory ] [ \-i [ vpn-interface] [ \-p pid-file ]" 
 
 .SH DESCRIPTION
 .B radvc
@@ -53,6 +53,14 @@ specify the file to be created. default is /etc/resolv.conf.
 .BR "\-d save-directory"
 specify the directory where /etc/resolv.conf is temporary saved. This allows
 us to restore the old configurations file. Default is /tmp.
+
+.TP
+.BR "\-i vpn-interface"
+If radvc is always started and you want to be able to connect to a VPN-server,
+you can give the name of the VPN interface here. This make shure that after
+the VPN connection and stopping the right resolv.conf file will be correctly
+restored and that the name server entries are in the right order.
+
 
 .TP
 .BR "\-p pid-file"
