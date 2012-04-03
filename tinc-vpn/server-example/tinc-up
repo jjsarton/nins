@@ -7,14 +7,15 @@ VPN_SUBNET_NR=3            # the subnet forseen for VPN
 VPN_SERVER_SUFFIX=1        # The adresse of the VPN tap is the <prefix>::$VPN_SERVER_SUFFIX
 SEARCH_LIST=localnet       # The domain name for your LAN
 
-ip link set dev $INTERFACE up 
-
 # calc dynamic value
 server_ip=`ip -6 ro sh dev $MN_IF | grep '::/64 via' | awk '{ print $3 }'`
 vpn_subnet=`ip -6 ro sh dev $MN_IF | grep '::/64 via' | sed 's/::.*/:'$VPN_SUBNET_NR'::\/64/'`
 vpn_server_ip=`echo $vpn_subnet | sed "s@/64@$VPN_SERVER_SUFFIX@"`
 
-ip ad ad $vpn_subnet dev $INTERFACE
+ip link set dev $INTERFACE up 
+ip link set mtu 1280 dev $INTERFACE
+
+ip ad ad $vpn_server_ip/54 dev $INTERFACE
 ip ro ad $vpn_subnet via $vpn_server_ip dev $INTERFACE
 
 function startRadvd()
