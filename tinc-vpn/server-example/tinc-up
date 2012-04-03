@@ -9,7 +9,7 @@ SEARCH_LIST=localnet       # The domain name for your LAN
 
 # calc dynamic value
 server_ip=`ip -6 ro sh dev $MN_IF | grep '::/64 via' | awk '{ print $3 }'`
-vpn_subnet=`ip -6 ro sh dev $MN_IF | grep '::/64 via' | sed 's/::.*/:'$VPN_SUBNET_NR'::\/64/'`
+vpn_subnet=`ip -6 ro sh dev $MN_IF | grep '::/64 via' | sed 's/:[0-9a-fA-F][0-9a-fA-F]*::.*/:'$VPN_SUBNET_NR'::\/64/'`
 vpn_server_ip=`echo $vpn_subnet | sed "s@/64@$VPN_SERVER_SUFFIX@"`
 
 ip link set dev $INTERFACE up 

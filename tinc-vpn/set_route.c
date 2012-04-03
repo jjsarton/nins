@@ -95,7 +95,7 @@ static void mask_addr(struct in6_addr *addr, int bits)
     unsigned char *b = (unsigned char*)addr;
     while (bits>0)
     {
-       switch (sz - bits)
+       switch ( bits)
        {
            case 1: *b &= 0x80; break;
            case 2: *b &= 0xc0; break;
@@ -175,7 +175,7 @@ int main(int argc, char **argv)
 
     /* calculate the subnet mask  for setting our gateway addresse */
     bits=atoi(mask);
-    inet_ntop(AF_INET6, &addr, ad, sizeof(ad));
+    inet_ntop(AF_INET6, &own_addr, ad, sizeof(ad));
     mask_addr(&addr, bits);
 
     /* set the environment to pass to our script */
