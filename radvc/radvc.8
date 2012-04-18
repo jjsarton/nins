@@ -70,6 +70,23 @@ create a pid file,
 .BR "\-v"
 Print the version number and exit.
 
+.SH SIGNALS
+
+.BR "radvc"
+will restore the original resolv.conf file and ternminate
+if the following signals are received:
+.B SIGHUP SIGINT SIGQUIT SIGTERM.
+The signals
+.B SIGUSR1
+and
+.B SIGUSR2
+can be used for signaling that the
+.B "VPN"
+connection is available or not provided. 
+.B radvc
+will on receipt of these signals restore the original resolv.conf
+file or reinstall the VPN specific resolv.conf file.
+
 .SH FILES
 
 .nf

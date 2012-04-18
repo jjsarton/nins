@@ -2,15 +2,19 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
 #include <sys/types.h>
 #include <getopt.h>
+#include <errno.h>
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <ifaddrs.h>
+#include <netinet/in.h>
+#include <netinet/icmp6.h>
 
 #include <sys/poll.h>
-
+#include <linux/if_addr.h>
 
 /***********************************************
  * wait_for_iface()
@@ -85,7 +89,7 @@ static int wait_for_iface(char *name, struct in6_addr *addr, int local)
            fprintf(stderr,"Interface %s not found\n",name);
            return 0;
        }
-       poll(NULL,0,1000);
+       poll(NULL,0,250);
     }
 }
 
@@ -158,16 +162,17 @@ int main(int argc, char **argv)
         }
     }
 
+
     if ( ( res = wait_for_iface(device, &own_addr,0)) != 1 )
     {
         return 1;
     }
-    
+
     /* we knowm the global addresse assigned to our interface
      * and we can now prepare the values to pass to our script
      * via the environment,
      */
-     
+
     /* calculate the network mask */
     bits=atoi(own_mask);
     mask_addr(&own_addr, bits);
@@ -195,7 +200,7 @@ int main(int argc, char **argv)
     {
         snprintf(cmd, sizeof(cmd), "%s", script_name);
     }
-    
+
     execl(cmd,cmd,NULL);
     perror("execl");
 

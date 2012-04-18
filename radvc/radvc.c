@@ -57,6 +57,8 @@ static char *resolv_conf = "/etc/resolv.conf";
 static char *save_dir = "/tmp";
 static char *save_file = "/tmp";
 static char *save_file_vpn = "/tmp";
+static char *vpn_file = "/tmp";
+
 static char *pid_file = NULL;
 static char *vpn_interface = NULL;
 static int   vpn_idx=0;
@@ -91,6 +93,11 @@ static void sig_handler(int sig)
     if ( access(save_file, F_OK) == 0 )
     {
         restore_resolv_conf(save_file, resolv_conf);
+        if (vpn_interface && access(save_file_vpn, F_OK) == 0)
+        {
+            unlink(save_file_vpn);
+            unlink(vpn_file);
+        }
     }
     else if (vpn_interface && access(save_file_vpn, F_OK) == 0 )
     {
@@ -112,9 +119,36 @@ static void sig_handler(int sig)
             }
         }
     }
+
     exit(0);
 }
 
+static void usr_handler(int sig)
+{
+    if ( vpn_interface != NULL )
+    {
+        switch(sig)
+        {
+           case SIGUSR1: /* from subnet-up */
+               cp(resolv_conf, vpn_file);
+               if ( save_file_vpn )
+               {
+                  cp(save_file_vpn, resolv_conf);
+               }
+               else if ( access(save_file, F_OK) == 0 )
+               {
+                   cp(save_file, resolv_conf);
+               }
+           break;
+           case SIGUSR2: /* from subnet-down */
+               if ( access(vpn_file, F_OK) == 0 )
+               {
+                   cp(save_file_vpn, resolv_conf);
+               }
+           break;
+        }
+    }
+}
 static void set_signals(void)
 {
     struct sigaction act;
@@ -124,6 +158,8 @@ static void set_signals(void)
     sigaddset(&smask, SIGINT);
     sigaddset(&smask, SIGQUIT);
     sigaddset(&smask, SIGTERM);
+    sigaddset(&smask, SIGUSR1);
+    sigaddset(&smask, SIGUSR2);
 
     memset(&act, 0, sizeof(act));
     act.sa_handler = sig_handler;
@@ -133,6 +169,12 @@ static void set_signals(void)
     sigaction(SIGINT, &act, NULL);
     sigaction(SIGQUIT, &act, NULL);
     sigaction(SIGTERM, &act, NULL);
+
+    act.sa_flags |= SA_RESTART;
+    act.sa_handler = usr_handler;
+    sigaction(SIGUSR1, &act, NULL);
+    sigaction(SIGUSR2, &act, NULL);
+    
 }
 
 
@@ -587,7 +629,6 @@ static int parse_reply(struct msghdr *msg, int cc, void *addr, struct timeval *t
     switch (icmph->icmp6_type)
     {
         case ND_ROUTER_ADVERT:
-            printf("%s: got ND_ROUTER_ADVERT if %d\n",me, idx);
             if (idx )
             {
                 vpn_state = check_for_vpn(idx);
@@ -747,7 +788,7 @@ int main(int argc, char **argv)
                return 0;
             break;
             default:
-                printf("usage: %s [-f] [-r resolver-file] [-d savedir] [-p pid_file]\n",me);
+                printf("usage: %s [-f] [-r resolver-file] [-d savedir] [-p pid_file] [-i vpn-if]\n",me);
                 exit(1);
         }
     }
@@ -785,6 +826,17 @@ int main(int argc, char **argv)
                 perror("calloc");
                 exit(1);
             }
+            vpn_file = calloc(c,1);
+            if ( vpn_file )
+            {
+                sprintf(vpn_file, "%svpn-%s",save_dir, s);
+            }
+            else
+            {
+                perror("calloc");
+                exit(1);
+            }
+
         }
     }
     else

@@ -12,7 +12,7 @@
 
 start()
 {
-    PROCS=`pgrep minsc`
+    PROCS=`pgrep radvc`
     if [ x"$PROCS" = x ]
     then
         echo start radvc
