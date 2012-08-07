@@ -35,11 +35,11 @@ if [ -e /etc/sysconfig/ ]
 then
     ARGS=`get_args`
     touch /etc/sysconfig/ninsd
-    echo "NINSD_IFACE=$ARGS" > /etc/sysconfig/ninsd
-elif  [ -e /etc/defaults/ ]
+    echo "NINSD_IFACE='-i $ARGS'" > /etc/sysconfig/ninsd
+elif  [ -e /etc/default/ ]
 then
     ARGS=`get_args`
-    echo "NINSD_IFACE=$ARGS" > /etc/default/ninsd
+    echo "NINSD_IFACE='-i $ARGS'" > /etc/default/ninsd
 else
     echo Sorry your system is not supported
     exit 1

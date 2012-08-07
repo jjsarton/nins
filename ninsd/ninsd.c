@@ -139,14 +139,14 @@ static void set_signals(void)
 
 static char *print_addr(struct in6_addr *addr)
 {
-    static char str[128];
+    static char str[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, addr, str, sizeof(str));
     return str;
 }
 
 static char *print_addr4(struct in_addr *addr)
 {
-    static char str[128];
+    static char str[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, addr, str, sizeof(str));
     return str;
 }
@@ -192,7 +192,7 @@ static void set_pid_ownership(char *user, char *group, char *pid_obj)
 void get_dynamic_ipv4(node_info_t *ni, char *map_file)
 {
     FILE *fp;
-    char gladdr[128];
+    char gladdr[INET6_ADDRSTRLEN];
     char line[1024];
     inet_ntop(AF_INET6, &ni->global, gladdr, sizeof(gladdr));
 
@@ -290,7 +290,7 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                     {
                         uint8_t *data = (uint8_t *)nih + sizeof(struct ni_hdr) + 4; // ttl len = 4;
                         nl = data[0];
-                        char add[128];
+                        char add[INET6_ADDRSTRLEN];
                         strcpy(add, print_addr((struct in6_addr*)data));
                         syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: Addr %s", print_addr(&from->sin6_addr),add);
                         node_info_add_global(&from->sin6_addr,(struct in6_addr*)data, ttl, domain, updater);
@@ -408,7 +408,7 @@ void complete_info(int sock, uint8_t *outpack,int ttl)
 int mainloop(int sock, uint8_t *outpack, int packlen)
 {
     struct pollfd pollfd;
-    char addrbuf[128];
+    char addrbuf[INET6_ADDRSTRLEN];
     char ans_data[4096];
     struct iovec iov;
     struct msghdr msg;
@@ -425,8 +425,6 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
     for(;;)
     {
         poll(&pollfd, 1, 1000);
-        if ( pollfd.revents && !(pollfd.revents & POLLIN) )
-printf("poll revents %x\n",pollfd.revents);
 
         if ( (pollfd.revents & POLLIN) == POLLIN )
         {

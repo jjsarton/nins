@@ -27,7 +27,7 @@ typedef struct ra_xxx_info_head
     uint32_t lifetime;
 } ra_xxx_head_t;
 
-static char ip_nsserver[128];
+static char ip_nsserver[INET6_ADDRSTRLEN];
 
 int decode_router_advertisement(struct icmp6_hdr *icmph, int len, struct in6_addr* ns_server, int *ttl, char *domain)
 {

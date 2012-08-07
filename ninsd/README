@@ -129,6 +129,11 @@ zone "dynamic" IN {
 and create this file within the directory
 state within the option directory of the named.conf
 file.
+
+Please make shure that named (bind) has write right
+to the directory containing the configurations files.
+On debian issue: "chmod g+w /etc/bind".
+
 This file may contain:
 
 ===================================
@@ -187,7 +192,7 @@ If so add:
 
 to the options part of the file /etc/named
 DNS64 / NAT64 require an own subnet. The
-subnet id dead for the systems within your
+subnet is dead for the systems within your
 LAN and the subnet for DNS64 / NAT64 is
 dead. For the case you use ptrtd you should
 symply launch:

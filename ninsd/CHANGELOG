@@ -1,5 +1,8 @@
+2012 August 07 Version 0.8
+- Some little changes regarding the Rasperry PI with raspdebian
+
 2012 March 22 Version 0.7
-- bug witth program name fixed
+- bug with program name fixed
 - pid file contain now the interface name
 
 2012 February 22 Version 0.6

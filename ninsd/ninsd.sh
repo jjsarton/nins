@@ -2,10 +2,10 @@
 
 if [ -e /etc/default/ninsd ]
 then
-    source /etc/default/ninsd
+    . /etc/default/ninsd
 elif [ -e exist /etc/sysconfig ]
 then
-    source /etc/sysconfig/ninsd
+    . /etc/sysconfig/ninsd
 fi
 
 if [ x"$NINSD_IFACE" = x ]

@@ -57,7 +57,7 @@ build_service_file:
 	@if [ -e /etc/sysconfig/ ]; then\
 		cp ninsd.service ninsd.service.temp; \
 	elif [ -e /etc/default/ ]; then \
-		sed 's/sysconfig/default/' < ninsd.service > ninsd.service.temp; \
+		sed 's/default/default/' < ninsd.service > ninsd.service.temp; \
 	fi
 
 install-init:
