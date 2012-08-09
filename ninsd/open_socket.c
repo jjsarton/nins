@@ -137,6 +137,7 @@ int icmp_socket(char *name, int wait_for_if, struct in6_addr *addr)
         {
             syslog(LOG_ERR, "setsockopt: %s",strerror(errno));
             close(sock);
+            sock = -1;
         }
         else
         {
@@ -148,6 +149,7 @@ int icmp_socket(char *name, int wait_for_if, struct in6_addr *addr)
                 {
                     syslog(LOG_ERR, "setsockopt: %s",strerror(errno));
                     close(sock);
+                    sock = -1;
                 }
             }
         }

@@ -491,8 +491,8 @@ int main(int argc, char **argv)
     if ( (prgName=strrchr(argv[0],'/')) )
         prgName++;
     else
-    	prgName = argv[0];
-    	
+        prgName = argv[0];
+ 
     while( (c = getopt(argc, argv, "i:vft:s:m:4p:du:g:w")) > 0)
     {
         switch(c)
@@ -643,8 +643,8 @@ int main(int argc, char **argv)
         syslog(LOG_NOTICE,"enter main loop");
 
         mainloop(sock, outpack, packlen);
-   }
-   while ( wait_for_if );
+    }
+    while ( wait_for_if );
 
     return 0;
 }

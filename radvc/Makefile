@@ -40,6 +40,9 @@ install-init:
 	@if [ -e /etc/rc5.d ]; then \
 	         ln -s ../init.d/radvc /etc/rc5.d/S10radvc; \
 	fi
+	@if [ -e /etc/rc2.d ]; then \
+	         ln -s ../init.d/radvc /etc/rc2.d/S10radvc; \
+	fi
 
 uninstall: uninstall-sbin uninstall-man uninstall-start
 
@@ -67,6 +70,9 @@ uninstall-init:
 	@+/etc/init.d/radvc stop
 	@if [ -e /etc/rc5.d/S10radvc ]; then \
 	        rm -f /etc/rc5.d/S10radvc;\
+	fi
+	@if [ -e /etc/rc2.d/S10radvc ]; then \
+	        rm -f /etc/rc2.d/S10radvc;\
 	fi
 	@+rm -f /etc/init.d/radvc
 
