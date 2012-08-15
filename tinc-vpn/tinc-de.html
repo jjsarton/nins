@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+ <meta name="keywords" content="IPv6, VPN, tinc, nins">
+ <style type="text/css">
+  body {
+   font-family: helvetica, sans-serif;
+   font-size:	0.9em;
+  }
+  #wrapper {
+   width: 43em;
+   margin: auto;
+  }
+  .decimal {
+   list-style-type:decimal;
+  }
+  pre {
+	  background-color: #eeeeff;
+	  border: solid #0000ff 1px;
+	  font-family: fixed, "Courier New";
+	  overflow: auto;
+  }
+  .red {
+	  color: red;
+	  font-weight:bold;
+  }
+  .green {
+	  color: green;
+ 	  font-weight:bold;
+ }
+  .clear { clear: left; }
+  .pict { overflow:auto; }
+  .pictContent { width:42.5em; }
+  .device { border: solid black 1px; width:10em;height:5em; float:left;}
+  .connection { margin-top: 2.5em; float:left; border-top: solid red 1px;
+                width:3em;height:2.5em;text-align:center;}
+  .internal { float:right; }
+  .cable { height: 9em; width:1px; background-color: red; margin-top: 1.5em; float:left;}
+  .right { text-align:right;}
+  .spacer { width:11.5em; height:1em; float:right;
+ </style>
+</head>
+<html>
+ <body lang="de"><div id="wrapper">
+ 
+  <h1>Verschüsselte IPv6 Verbindung zu Heimnetz</h1>
+  <p>
+   Bei dem Zugriff auf das heimische Netz sollte es, wenn man über das
+   Internet die Verbindung erstellt, von Vorteil sein, eine
+   verschlüsselte Verbindung herzustellen.
+  </p>
+  <p>
+  Eine kleine Untersuchung der vorhandenen Möglichkeiten zeigt, dass das
+  Verwenden der ipsec Feature des Kernels nicht unbedingt das Einfachste
+  ist, einige Arbeiten sind notwendig und nicht Jedermannssache. Ein
+  Ausflug in der Welt der VPN Programme (openVPN, openswan und tinc)
+  offenbart, dass tinc vielversprechend ist. 
+  </p>
+  <p>
+  Die Einrichtung von tinc bedarf eigentlich wenig Arbeit, aber die
+  Dokumentation die ich gefunden habe ging über den Umweg von IPv4 und
+  dies ist für einen Zugriff auf mein internes Netz nicht möglich, ich
+  kann kein Portforwarding oder ähnliches einstellen. Zudem gefällt es
+  mir nicht, jedes Gerät das ich auf Reise mitnehme,
+  extra mit einer IPv6 Adresse zu versehen.
+  </p>
+  <p>
+  Nach meiner Vorstellung sollte kein Mesh Netz, wie bei tinc vorgesehen,
+  vorhanden sein. Für die von tinc angebotenen Einrichtungsbeispiele
+  werden immer die kürzesten Wege zwischen den verschiedenen „mobilen“
+  Teilnehmern genommen, dies ohne den Umweg über den „Heim“-Router. Wenn eine
+  Gruppe zusammen arbeitet mag dies sinnvoll sein. Mit den aktuellen
+  Übertragungsraten dürfte dieses Vorgehen nicht mehr so notwendig sein,
+  außer wenn eine absolute Sicherheit gegen einen Ausfall einer der Komponenten des 
+  Netzes wichtig ist. 
+  </p>
+  <p>
+  Außerdem sollten alle potentiellen Klienten mit der gleichen Konfiguration
+  versehen sein. Das Festlegen einer festen IPv6 Adresse und das Pflegen
+  des Namenservers auf den "Heim"-Server sollten vermieden werden.  
+  </p>
+  <p>
+  IPv6 bietet die Möglichgeit der "Automatische zustandslose Adressen
+  Konfiguration" und diese sollte verwendet werden. Die Vergabe der Adresse
+  per DHCP dürfte nicht das Wahre sein, es werden Software Neztwerk-Schnittstellen
+  verwendet, die beim Erzeugen eine neue "Hardware" Adresse (MAC) erhalten,
+  dies würde dazu führen, dass die zugewiesene Adresse sich ständig ändert
+  und die DHCP "lease" Dateien sich aufblähen.
+  </p>
+  <h2>Unser Heim Netzwerk</h2>
+  <p>
+  Wird gehen hier von folgenden Gegebenheiten aus:<br>
+  <ul>
+   <li>Externe IP Adresse des Servers: 2001:db8:1::2</li>
+   <li>Präfix unseres Netzwerks: 2001:db8:cafe::/48</li>
+   <li>Lokale Subnetz:
+    <ul>
+     <li>2001:db8:cafe:1::/64 Lokale IPv6 Geräte</li>
+     <li>2001:db8:cafe:2::/64 Lokale IPv4 Geräte über tayga (NAT64)</li>
+     <li>2001:db8:cafe:3::/64 Segment für externe IPv6 Geräte</li>
+    </ul>
+    <li>Privater Domänenname: localnet</li>
+   </ul>
+   Der Server ist bereits mit IPv6 eingerichtet, so dass nur die VPN
+   Verbindungsmöglichkeit zusätzlich hinzu kommt.
+  </p>
+  <div class="pict"><div class="pictContent">
+  <div class="device">Client<br>2001:db8:beef:fee::2<br>2001:db8:cafe:3:...</div>
+  <div class="connection">WAN</div>
+  <div class="connection"></div>
+  <div class="device">Server<br>2001:db8:1::2<br><div class="right">2001:db8:cafe:1::1</div><br><span class="right"></span></div>
+  <div class="connection">LAN</div>
+  <div class="cable"></div>  
+  <div class="connection"></div>
+  <div class="device">IPv6 Client<br>2001:db8:cafe:1:...</div>
+  <div class="spacer"></div>
+  <div class="connection"></div>
+  <div class="device">IPv4 Client<br>2001:db8:cafe:2:...</div>
+  <div class="clear"></div>
+  </div></div>
+  <h2>Server vorbereiten</h2>
+  <p>
+  Netzwerk-Verbindungen werden mit tinc über ein frei vergebbares
+  Netzwerk-0Name angegeben. Da wir unser Heimat Netzwerk einbinden
+  wollen, schlage ich "heimnetz" vor.
+  </p>
+  <p>
+  Als ersten muss das Verzeichnis /etc/tinc/heimnetz/hosts angelegt werden:
+<pre>
+# mkdir -p /etc/tinc/<span class="red">heimnetz</span>/hosts
+</pre>
+  Wir können nun die Datei /etc/tinc/heimnetz/tinc.conf erstellen, sie
+  hat nachstehenden Inhalt:
+<pre>
+Name = <span class="red">heimnetz</span>
+Mode = switch
+Interface = vpn
+forwarding = kernel
+</pre>
+ Als Name für die Netzwerk Schnittstelle des VPN-Servers steht vpn,
+ dieser Name wird in den Firewall Regeln verwendet. 
+</p>
+<p>
+Die Anweisung <strong>forwarding = 1</strong> ist für tinc Versionen
+kleiner 1.0.17 notwendig, für 1.0.17 kann anstelle diese Anweisung
+<strong>DecrementTTL = no</strong> eingetragen werden und ab Version
+1.0.18 kann eine Zusatzanweisung entfallen.
+</p>
+<p>
+ Damit tinc die notwendigen Netzwerkschnittstellen-Parameter anlegen kann
+ und den erforderlichen Dienst startet bzw. anhält werden die Scripte
+ tinc-up und tinc-down aufgerufen. Das Startscript auf dem Server sieht
+ wie folgt aus:
+<pre>
+#!/bin/sh
+# File tinc-up
+ip link set dev $INTERFACE up
+ip link set mtu 1280 dev $INTERFACE
+ip ad ad <span class="red">2001:db8:cafe:3::1</span>/64 dev $INTERFACE 
+ip ro ad default via <span class="red">2001:db8:cafe:3::1</span> dev $INTERFACE
+
+function startRadvd()
+{
+   cat &gt;/tmp/radvd.conf &lt;&lt;!
+interface heimnetz
+{
+       AdvSendAdvert on;
+       MinRtrAdvInterval 300;
+       MaxRtrAdvInterval 600;
+       prefix <span class="red">2001:db8:cafe:3::</span>/64
+       {
+	       AdvOnLink on;
+	       AdvAutonomous on;
+	       AdvRouterAddr on;
+       };
+       RDNSS <span class="red">2001:db8:cafe:3::1</span>  { };
+       DNSSL <span class="red">localnet</span> { };
+};      
+!
+	chmod 554 /tmp/radvd.conf
+	sleep 1
+	radvd -p /tmp/radvd.pid -C /tmp/radvd.conf -u radvd
+	<span class="green">sleep 1
+	ninsd -i $INTERFACE -p /tmp/ninsd.pid</span>
+}
+
+startRadvd &amp;
+
+</pre>
+  Die "externen" Rechner werden ihre Routings-Informationen sowie die
+  Adresse des Namensservers des Heimnetzes und die Domänen Suchliste über
+  das "Router Advertisement" erhalten.
+  Die Konfigurationsdatei wird hier
+  im Script erstellt, könnte aber auch statisch vorliegen.<br>
+  Mit dem Start des Dämons ninsd kann auch aus dem lokalen Netzwerk
+  das "Mobile Systems" per Name aus dem Heimnetzwerk erreicht werden, dies
+  ist optional. Als Namensserver geben wir die Adresse des "Tinc Netzwerk"
+  Gerätes an. Diese Adresse wird Client-seitig benötigt.
+</p>
+<p>
+Mit ein wenig mehr Scripting Können die Adressenteile usw. dynamisch
+bestimmt werden, solch ein Script wird später beschrieben. 
+</p>
+<p>
+  Die Schnittstelle und die Dienste sollten nur so lange wie nötig
+  vorhanden sein, das Script tinc-down sorgt für die Aufräumarbeiten:
+<pre>
+#!/bin/sh
+# File tinc-down
+
+killme()
+{
+    pid=`cat /tmp/$1.pid`
+    if [ "x$pid" != "x" ]
+    then 
+        kill $pid
+    fi
+}
+
+ip set dev $INTERFACE down
+
+killme radvd
+<span class="green">killme ninsd
+</span>
+</pre>
+</p>
+ <p>
+ Eine verschlüsselte Verbindung setzt Schlüssel voraus, diese können
+ nun erzeugt werden:
+<pre>
+# tincd -K -n <span class="red">heimnetz</span>
+Generating 2048 bits keys:
+.......+++ p
+............................................................+++ q
+Done.
+Please enter a file to save private RSA key to [/etc/tinc/heimnetz/rsa_key.priv]: 
+Please enter a file to save public RSA key to [/etc/tinc/heimnetz/hosts/heimnetz]: 
+</pre>
+  Beide Fragen sollten mit [RETURN] bestätigt werden.
+ </p>
+ <p>
+ Im Verzeichnis hosts befindet sich der öffentliche Schlüssel des Servers
+ und muss auf jeden Mobilen Rechner später kopiert werden. Eine weitere
+ wichtige Information über den Ziel-Rechner ist seine Adresse oder sein Name.
+ Diese Information muss jedem Klient bekannt sein und wird daher in der Datei
+ /etc/tinc/heimnetz/hosts/heimnetz eingetragen:
+<pre>
+Address = <span class="red">2001:db8:1::2</span>
+-----BEGIN RSA PUBLIC KEY-----
+MIIBCgKCAQEApzgk/MxBdWrCO9up+9ii146i76X+dsBsi+DhOyU2nT8xKJrSJq/P
+4jv/OxmpC8NcmZPfuyOQxLMxczCBTLtM8rrPanBud7IpHg+tDS8wff5jox2iFK3R
+AqNRubCnms3DD0PUDnC8OTHQsQ0Dl03EXjNxUhIExEi881Kbth2XMRIUW6yH/fr9
+MP6DBG16w/Uf8pfReeuQyku1iITloVErvsSkFi7RTEY49BKkzrvehcHuVGltiRzy
+SYe+IHnTTQarpq0MovaogEq4zPp/Ka4W6vb6ey5NVU/mjFtDenIZF1b+qrAelwPP
+N5J5IhwRk49Zr7LF+5oHFsYyNRqDyFbB2QIDAQAB
+-----END RSA PUBLIC KEY-----
+
+</pre>
+ Die hier aufgeführte Adresse ist die Adresse des Servers auf der
+ Internet Seite. Wenn ein Name vorhanden ist (z.B. mittels dynDNS.org)
+ kann dieser Name anstelle der Adresse eingetragen werden. Dies
+ ist vor allem bei einer dynamisch bezogenen "Haupt" IPv6 Adresse unerlässlich.
+<pre>
+Address = <span class="red">anna.dyndns.org</span>
+</pre>
+ </p>
+
+ <h2>Vorbereitung der Mobilen Geräte</h2>
+ <p>
+ Die Einrichtung der Klienten unterscheidet sich nur geringfügig
+ von der Einrichtung des Servers. Einige Hürden müssen aber seitens
+ der Netzwerkschnittstelle übersprungen werden.
+<pre>
+# mkdir -p /etc/tinc/<span class="red">heimnetz</span>/hosts
+</pre>
+ Die Konfigurationsdatei /etc/tinc/heimnetz/tinc.conf sieht wie
+ folgt aus:
+<pre>
+Name = <span class="red">bernd</span>
+Mode = switch
+Interface = vpn
+ConnectTo = <span class="red">heimnetz</span>
+</pre>
+ Hauptunterschied zur Konfigurationsdatei der Server ist der Eintrag
+ <strong>ConnectTo = heimnetz</strong>. Damit kann der Klient gezielt
+ in dem passenden Verzeichnis (<i>/etc/tinc/heimnetz</i> )
+ die notwendigen Informationen finden.
+ </p>
+ <p>
+  Das Generieren der Schlüssel-Dateien ist identisch zur Generierung
+  auf dem Server:
+<pre>
+# tincd -K -n <span class="red">heimnetz</span>
+...
+</pre>
+ Die öffentliche Schlüssel-Datei bedarf aber keiner weiteren Änderungen. 
+ </p>
+ <p>
+ Die Dateien /etc/tinc/heimnetz/tinc-up und /etc/tinc/heimnetz/tinc-down
+ unterscheiden sich aber von denen des Servers.
+ </p>
+ <p>
+  Nachdem die Schnittstelle in den Zustand "up" gesetzt wurde, ist sie noch
+  lange nicht "initialisiert". Sofort nach dem Hochfahren werden interne
+  Prüfungen vorgenommen, erst nachdem diese erste Phase der Initialisierung
+  abgeschlossen und eine Adresse vergeben wurde können Routen´ ferstgelegt werden.
+  Bis zum Vorhandensein der Adresse dauert es auch ein wenig.
+  In der Testumgebung, alles im lokalen Netz, wird eine Adresse
+  nach ca 2 Sek. zugewiesen. Der Versuch das Routing nach 2 oder 3 Sekunden zu setzen
+  scheitert.<br>
+  Die Überwachung der Schnittstelle auf das Vorhandensein
+  der globalen IPv6 Addresse und nach Erkennung dieser, die Route zu setzen, ist der richtige Weg.
+  Da die Adresse unter Umständen sich im Prefix ändern könnte, wurde das kleinen Programm
+  set_route geschrieben.
+  </p>
+  <p>
+  Damit der Klient namentlich auf Systeme des privates Netzes zugreifen kann, muss der Namensserver
+  des heimischen Netzes und nicht irgend ein Namensserver abgefragt werden. Die Lösung
+  hierfür ist es die Datei /etc/resolv.conf neu zu erzeugen wobei der alte Stand
+  aufbewahrt wird. Somit kann beim Stoppen der VPN Verbindung die ursprüngliche
+  Konfiguration wieder herhestellt werden. Diese Aufgabe wird vom Programm radvc wahrgenommen.
+  </p>
+<pre>
+#!/bin/sh
+# File tinc-up
+ip link set dev $INTERFACE up
+ip link set mtu 1280 dev $INTERFACE
+radvc -d /etc/tinc/$NETNAME/$INTERFACE -p /etc/tinc/$NETNAME/radvc.pid
+set_route -i $INTERFACE &amp;
+echo $! > /etc/tinc/$NETNAME/$INTERFACE -p /etc/tinc/$NETNAME/set_route.pid
+</pre>
+  Nach dem Hochfahren der Schnittstelle wird der Dämon radvc aufgerufen.
+  Radvc wertet die "Router-Advertisement" Nachrichten, erkennt die IP Adresse
+  des Namenservers und die passende Suchliste, z. B. example.org oder
+  localnet, damit kann eine neue Datei /etc/resov.conf erzeugt werden.
+  </p>
+  <p>
+  Damit die "SLAAC" (Zustandslose Adressen Autokonfiguration) möglich wird, aber
+  dem noch eine statische Route für den Bereich <i>2001:db8:cafe::/48</i>
+  (das ganzes lokales Netz) muss ein wenig getrickst werden. set_route
+  überprüft zyklisch ob die Tinc Schnittstelle mit eine globale Adresse
+  versehen ist. Sobald dieser Zustand erkannt wird, wird die Schnittstelle
+  auf Forwarding gestellt und die errechnete statische Route gesetzt. Letzeres
+  geschieht im Script tinc-slaac.
+  </p>
+  <p>
+   Wenn radvc auf alle Klienten installiert ist und alle Netzwerk Schnittstellen
+   überwacht sind, sollte radvc nicht erneut aufgerufen werden.<br>
+   In diesem Fall sollte dem Dämon radvc eine zusätzliche Startoption gegeben werden (-i vpn).
+   Dies bewirkt, dass die Tinc VPN Netwerkschnittstelle (vpn) als solch behandelt wird
+   und dass die Datei /etc/resolv.conf entsprechend dem Vorhandensein oder nicht
+   Verfügbarkeit der VPN-Verbindung verwaltet wird.
+  </p>
+<pre>
+#!/bin/sh
+# File: tinc-slaac
+
+sysctl -w net.ipv6.conf.$INTERFACE.forwarding=1;
+
+ip route add $PREFIX_NET/$MASK_NET via $PREFIX_SUBNET$SUFFIX dev $INTERFACE
+</pre>
+ Dieser Script wird im Verzeichnis /etc/tinc/home erwartet.
+ </p>
+<p>
+ Wenn tinc beendet wird, werden mit das Script tinc-down die notwendige
+ Aufräumaktionen erledigt:
+<pre>
+#!/bin/sh
+# File tinc-down
+if [ -f /etc/tinc/$NETNAME/set_route.pid ]
+then
+   kill `cat /etc/tinc/$NETNAME/set_route.pid`
+   rm -f /etc/tinc/$NETNAME/set_route.pid
+fi
+sysctl -w net.ipv6.conf.$INTERFACE.forwarding=0
+
+ip link set dev $INTERFACE down
+
+if [ -f /etc/tinc/$NETNAME/radvc.pid ]
+then
+   kill `cat /etc/tinc/$NETNAME/radvc.pid`
+fi
+</pre>
+  Falls eine Verbindung nicht zur Stande kam, existiert noch der Prozess set_route
+  und wird hier beendet. Danach wird die Netzwerkschnittstelle
+  heruntergefahren und radvc beendet. <br>
+ </p>
+ <p>
+   Alternativ kann der Klient eine feste IP Addresse erhalten, In diesen
+   Fall könnte die tinc-up und tinc-down Scripte so aussehen:
+<pre>
+#!/bin/sh
+# File tinc-up
+ip link set dev $INTERFACE up
+radvc -d /etc/tinc/$NETNAME/$INTERFACE
+sysctl -w net.ipv6.conf.$INTERFACE.forwarding=1
+ip -6 ad ad <span class="red">2001:db8:cafe:3::24</span> dev $INTERFACE
+ip -6 ro ad <span class="red">2001:db8:cafe::</span>/48 via <span class="red">2001:db8:cafe:3::1</span> dev $INTERFACE
+</pre>
+<pre>
+#!/bin/sh
+# File: tinc-down
+sysctl -w net.ipv6.conf.$INTERFACE.forwarding=0
+
+ip link set dev $INTERFACE down
+
+if [ -f /etc/tinc/$NETNAME/radvc.pid ]
+then
+   kill `cat /etc/tinc/$NETNAME/radvc.pid`
+fi
+</pre>
+</p>
+ <h2>Schlüssel Dateien des Servers und der Klienten</h2>
+ <p>
+  Damit die Protagonisten sich verständigen können, müssen die
+  privaten Schlüssel bekannt sein. Diese befinden sich im Verzeichnis
+  /etc/tinc/<span class="red">heimnetz</span>/hosts.
+  Die Datei des Servers, in unseren Fall heimnetz, muss im oben genannten
+  Ordner jedes Klienten kopiert werden. Da diese Schlüssel nur dann funktionieren,
+  wenn die Gegenstelle ihre passende private Version besitzt, spricht nichts
+  gegen das Austauschen der Schlüsseldatei per Mail oder ein anderes Medium.
+ </p>
+ <p>
+  Die  öffentlichen Schlüsseldateien der Klienten sind auf den Server, ebenfalls
+  im Verzeichnis /etc/tinc/<span class="red">heimnetz</span>/hosts zu kopieren.
+ </p>
+ <h2>Start des VPN Klient</h2>
+ <p>
+ Das Starten der VPN-Verbindung benötigt Root Rechte. Bei manchen
+ Distributionen ist es möglich die Verbindung zur Bootzeit zu starten,
+ dies ist aber nicht immer erwünscht.
+ Mit nachstehendem Script kann die Verbindung erstellt werden:
+<pre>
+#!/bin/sh
+# Please set the correct netname, see tinc documantation
+NETNAME=heinnetzwerk
+
+SU_COMMAND=
+PROTECTED=yes
+
+# no graphical tool, you must set one of
+######################################
+SU_COMMAND=su
+#SU_COMMAND=sudo
+
+# Graphical command will be detected
+#####################################
+# fedora example: beesu ls -l
+# SU_COMMAND=beesu
+
+# openSuse example_ gnomesu -c "ls -l"
+# SU_COMMAND="gnomesu -c"
+
+# ubuntu
+# SU_COMMAND=gksu
+
+# KDE Desktop
+# SU_COMMAND="kdesu -c"
+
+start()
+{
+   # get interface name
+   iface=`grep -i interface /etc/tinc/$1/tinc.conf| tr '=' ' '`
+   if [ ! -n $iface ]
+   then
+      iface=$1
+   else
+      iface=`echo $iface | awk '{ print $NF }'`
+   fi
+
+   # create a persistent tap device
+   if ! ip link sh dev $iface >/dev/null 2>/dev/null
+   then
+      ip tuntap add mode tap dev $iface
+   fi
+
+   # start vpn
+   tincd -n $1
+}
+
+stop()
+{
+   tincd -k -n $1
+}
+
+case $1 in
+start)start  $NETNAME; exit;;
+stop) stop $NETNAME; exit;;
+esac
+
+ans=`zenity  --list  --text "Start / Stop $NETNAME VPN" \
+    --radiolist  --column "Choose" --column "" TRUE Start FALSE Stop`
+
+
+# Search graphical command
+for cmd in beesu gnomesu gksu
+do
+    tmp=`which $cmd`
+    if [ $? -eq 0 ]
+    then
+        command=`basename $tmp`
+        break;
+    fi
+done
+
+# if not found set the default
+if [ ! -n $command ]
+then
+    command=$SU_COMMAND
+fi
+
+# set args if required and for sudo tell that the
+# args may not be protected
+case $command in
+    beesu)   SU_COMMAND=beesu ;;
+    gksu)    SU_COMMAND=gksu ;;
+    gnomesu) SU_COMMAND="gnomesu -c" ;;
+    kdesu)   SU_COMMAND="kdesu -c" ;;
+    su)      SU_COMMAND="su root -c" ;;
+    sudo)    SU_COMMAND="sudo -u root"; PROTECTED=no ;;
+esac
+
+# call us again with arguments via the root password utility
+case $PROTECTED in
+no)
+    case $ans in
+    Start)  $SU_COMMAND $0 start home ;;
+    Stop)   $SU_COMMAND $0 stop home ;;
+    esac
+    ;;
+yes)
+    case $ans in
+    Start)  $SU_COMMAND "$0 start home" ;;
+    Stop)   $SU_COMMAND "$0 stop home" ;;
+    esac
+    ;;
+esac
+
+</pre>
+Wenn zur Passwort-Abfrage ein GUI-Programme nicht vorhanden ist,
+können su oder sudo verwendung finden.
+ </p>
+ <p>
+ Diese Script kann irgendwo auf der Rechner installiert werden und muss als ausführbar markiert sein:
+<pre>
+chmod +x heimnetzVPN.sh
+</pre>
+Danach kann ein Starter installiert werden, entweder auf das Desktop oder der Task-bar.
+Diese Anwendung muss innerhalb eines Terminals laufen, falls su oder sudo zum Einsatz
+kommen ist das Passwort im Terminal einzugeben.
+ </p>
+ <h2>Firewall</h2>
+ <p>
+    Da die IPv6 Adressen auf der Internet Seite öffentlich sind, kann auf
+    jeder IPv6 Gerät des Heimnetzes zurückgegriffen werden. Ein Schutz durch
+    der Router ist nicht gegeben, außer wenn ein Firewall Router-seitig
+    installiert ist. Wenn ein Tunnel zur Verbindung mit dem IPv6 Netz
+    verwendet wird, ist der Rechner auf jeden Fall exponiert. Ein Firewall
+    ist daher ein Muss.
+ </p>
+ <p>
+	 Je nach Distribution stehen unterschiedliche graphische Oberflächen
+	 zu Verfügung, in der Regel sind diese zu sehr auf IPv4 getrimmt und
+	 für bestimmte Aufgaben nicht gerade leicht handhabbar.
+ </p>
+ <p>
+	 Da Firewalling immer auf iptables bzw. das IPv6 Pendant ip6tables basiert,
+	 kann eine kleine Datei erstellt und später von Hand ergänzt
+	 werden. Das einspielen und starten des Firewalls erfolgt dann über
+	 "ip6tables-restore &lt; Datei", dies sollte auf allen Systemen funktionieren.
+ </p>
+ <pre>
+*filter
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+-A INPUT -p ipv6-icmp -j ACCEPT
+-A INPUT -i lo -j ACCEPT
+-A INPUT -i eth0 -j ACCEPT
+-A INPUT -i eth1 -j ACCEPT
+-A INPUT -i nat64 -j ACCEPT
+-A INPUT -i vpn -j ACCEPT
+-A INPUT -m state --state NEW -m udp -p udp --dport 5353 -d ff02::fb -j ACCEPT
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 631 -j ACCEPT
+-A INPUT -m state --state NEW -m udp -p udp --dport 631 -j ACCEPT
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 22 -j ACCEPT
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 80 -j ACCEPT
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 443 -j ACCEPT
+-A INPUT -m state --state NEW -m udp -p udp --dport 655 -j ACCEPT
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 655 -j ACCEPT
+-A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+-A FORWARD -p ipv6-icmp -j ACCEPT
+-A FORWARD -i lo -j ACCEPT
+-A FORWARD -i eth0 -j ACCEPT
+-A FORWARD -i eth1 -j ACCEPT
+-A FORWARD -i nat64 -j ACCEPT
+-A FORWARD -i vpn -j ACCEPT
+-A INPUT -j REJECT --reject-with icmp6-adm-prohibited
+-A FORWARD -j REJECT --reject-with icmp6-adm-prohibited
+COMMIT
+ </pre>
+  Als erstes nach der Filter-Deklaration und den ersten weiteren 3 Zeilen,
+  werden angeforderte Nachrichten von externen Diensten, zugelassen.<br>
+
+  Danach werden alle eingehende icmp-v6 Verbindungen erlaubt, dies ist
+  für den IPv6 Betrieb wichtig.<br>
+  Der Verkehr von den angegebenen Schnittstellen lo, eth0, eth1 nat64 und vpn,
+  wird grundsätzlich erlaubt.<br>
+  Anschließend werden einige Dienste für eingehende Verbindungen frei
+  gegeben (mdns, ipp, ssh, http/https und schließlich tinc (655).<br>
+  Die Forwarding Regeln gelten für das interne Netz, deswegen wird für die
+  angegebene Schnittstellen alles akzeptiert.<br>
+  Die letzten Regeln senden eine "icmp-v6" Fehler Nachricht an den Absender zurück.
+  </p>
+  <p>
+  Die Zulassung weiterer Dienste kann leicht erreicht werden, indem Zeilen
+<pre>
+-A INPUT -m state --state NEW -m udp -p udp --dport <span class="red">#</span> -j ACCEPT
+-A INPUT -m state --state NEW -m tcp -p tcp --dport <span class="red">#</span> -j ACCEPT
+</pre>
+   hinzu gefügt werden. <span class="red">#</span> steht für die Portnummer des Dienstes. Falls
+   udp Bzw. tcp, vom Dienst nicht notwendig ist, sollte die entsprechende Zeile ausgelassen werden.
+  </p>
+ <h2>Bemerkungen</h2>
+ <p>
+	 Die Einträge die <span class="red">rot</span> markiert sind müssen an
+	 die eigenen Gegebenheiten angepasst werden.<br>
+	 Die <span class="green">grün</span> markierten Teile sind obligatorisch
+	 wenn der "entfernte" Rechner vom "heimnetz" oder von einem anderen
+	 "mobilen" Klient, per Name erreichbar sein soll. Wenn dieser Bedarf nicht
+	 vorhanden ist, können die so hervorgehobene Zeilen entfallen.
+ </p>
+ <p>
+	 Das Tap Gerät welches mittels des Kommandos "ip tuntap ..." angelegt wurde
+	 ist persistent. Dies erlaubt es immer die gleiche IP Adresse zu erhalten.
+	 Dies ist wichtig für den Fall dass eine volle Einbindung des Klients
+	 im Heim-Netzwerk erwünscht ist. Ohne dieses persistente Tap Gerät würde
+	 tincd ein neues Gerät ( mit einer anderen "Mac Adresse und dem zu Folge einer
+	 anderen IPv6 Adresse ) anlegen, dies könnte das DNS System stören, wenn
+	 die Verbindung gestoppt und kurze Zeit danach neu gestartet würde.
+ </p>
+ <h2>Tips</h2>
+ <h3>DNS Antworten benötigen viel Zeit</h3>
+ <p>
+	 Wenn ein Progamm sehr lange Zeit benötigt bis eine Verbindung zu
+	 irgend einem Dienst aufgebaut wurde, kann dies durch eine Multicast
+	 Abfrage (Avahi mdns) bedingt sein. In diesem Fall sollte die Datei
+	 /etc/nsswitch.conf kontrolliert werden und wenn in der Zeile
+	 hosts eine Eintragung mit mdns... vorhanden ist sollten diese mdns... Eintrag
+         entfernt werden.
+ </p>
+ <h3>Der Klient hat nur ein IPv4 Anschluss</h3>
+ <p>
+	 Eine IPv6 Verbindung ist trotzdem, über ein "IPv6 über IPv4" Tunnel möglich.<br>
+	 Als Alternative bestehen verschiedene Verfahre. Als Bestes hat sich
+	 der Zugriff über gogoNET herausgestellt. Das Paket gogoc kann aus
+	 der Ubuntu oder Debian Repository installiert werden, für Fedora
+	 kann auf <a href="https://github.com/jorti/gogoc-fedora-package">Fedora gogoc Sourcen</a>
+	 zurückgegriffen werden.<br>
+	 Von gogo6.net können auch die Sourcen von gogoc herunter geladen werden.
+	 Beim Kompilieren ist leider ein kleinen Problem vorhanden, dies kann
+	 dadurch gelöst werden, dass in der Datei:<br>
+	 gogoc-1_2-RELEASE/gogoc-messaging/gogocmessaging/message.h<br>
+	 vor der Zeile "#include <pal.h>" "#include <stddef.h>" eingefügt wird.
+	 Danach sollte gogoc sich Kompilieren lassen.
+ </p>
+ <p>
+	 Mit dem Teredo Protokol (Miredo) kann auch der heimische Server erreicht
+	 werden. Für Ubuntu existiert das entsprechen Paket miredo, bei Fedora ist
+	 miredo-client zu installieren.<br>
+	 Das Teredo-Protokol bietet aber nicht die Stabilität von gogoc.
+ </p>
+ <h3>VPN Server Adresse dynamisch setzen</h3>
+ <p>
+	 Wenn die IP-Adressen und das delegierte Netz Präfix dynamisch vergeben
+	 werden, können die Server-Adresse und das Subnetz für VPN verbindungen
+	 dynamisch ermittelt werden.<br>
+     Eine mögliche Implementierung des Serverscript tinc-up könnte
+     wie nachstehend ausehen:    
+ <pre>
+#!/bin/sh
+# File tinc-up
+
+# Set the following according to you needs
+MN_IF=eth0                 # the main interface to the LAN
+VPN_SUBNET_NR=3            # the subnet forseen for VPN
+VPN_SERVER_SUFFIX=1        # The adresse of the VPN tap is the &lt;prefix&gt;::$VPN_SERVER_SUFFIX
+SEARCH_LIST=localnet       # The domain name for your LAN
+
+# calc dynamic value
+server_ip=`ip -6 ro sh dev $MN_IF | grep '::/64 via' | awk '{ print $3 }'`
+vpn_subnet=`ip -6 ro sh dev $MN_IF | grep '::/64 via' | sed 's/:[0-9a-fA-F][0-9a-fA-F]*::.*/:'$VPN_SUBNET_NR'::\/64/'`
+vpn_server_ip=`echo $vpn_subnet | sed "s@/64@$VPN_SERVER_SUFFIX@"`
+
+ip link set dev $INTERFACE up 
+ip link set mtu 1280 dev $INTERFACE
+
+ip ad ad $vpn_server_ip/64 dev $INTERFACE
+ip ro ad $vpn_subnet via $vpn_server_ip dev $INTERFACE
+
+function startRadvd()
+{
+   cat &gt;/tmp/radvd.conf &lt;&lt;!
+interface $INTERFACE
+{
+    AdvSendAdvert on;
+    MinRtrAdvInterval 300;
+    MaxRtrAdvInterval 600;
+    prefix $vpn_subnet
+    {
+        AdvOnLink on;
+        AdvAutonomous on;
+        AdvRouterAddr on;
+    };
+    RDNSS $server_ip { };
+    DNSSL $SEARCH_LIST { };
+};
+!
+    chmod 554 /tmp/radvd.conf
+    sleep 1
+    radvd -p /tmp/radvd.pid -C /tmp/radvd.conf -u radvd
+    sleep 1
+    ninsd -i $INTERFACE -p /tmp/ninsd.pid
+}
+
+startRadvd $vpn_subnet &amp;
+</pre>
+  MN_IF ist die Netzwerkschnittstelle an dem die internen lokalen Geräte
+  angeschlossen sind.<br>
+  VPN_SUBNET_NR wird zur Bildung des Subnet Präfix für VPN Systeme verwendet.<br>
+  VPN_SERVER_SUFFIX dient zur Festlegung der Adresse der VPN Netzwerkschnittstelle.<br>
+ 
+ <h2>Referenzen</h2>
+ <ul>
+	 <li><a href="http://www.tinc-vpn.org">tinc</a></li>
+	 <li><a href="http://www.github.com/jjsarton/nins">ninsd/radvc/set_route</a></li>
+	 <li><a href="http://www.github.com/yaegashi/ninfod">ninfod</a></li>
+ </ul>
+ </div></body>
+</html>
