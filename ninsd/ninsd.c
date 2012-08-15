@@ -331,9 +331,12 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
         break;
         case ND_ROUTER_ADVERT:
             syslog(LOG_INFO,"got ND_ROUTER_ADVERT from %s\n", print_addr(&from->sin6_addr));
-            struct in6_addr ns_server;
-            memset(&ns_server, 0, sizeof(ns_server));
-            decode_router_advertisement(icmph, cc, &ns_server, &ttl, domain);
+            if ( ! *domain || memcmp(&from->sin6_addr,&own_addr, sizeof(own_addr)) == 0)
+            {
+                struct in6_addr ns_server;
+                memset(&ns_server, 0, sizeof(ns_server));
+                decode_router_advertisement(icmph, cc, &ns_server, &ttl, domain);
+            }
             if ( ttl == 0 )
             {
                 delete_all_clients(domain, updater);
@@ -346,13 +349,6 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
 
         case ND_NEIGHBOR_ADVERT:
             /* ignore this */
-#if 0
-            printf("got ND_NEIGHBOR_ADVERT from %s\n", print_addr(&from->sin6_addr));
-            if ( memcmp(&own_addr, &from->sin6_addr, sizeof(own_addr)) )
-            {
-                node_info_add_elem(&from->sin6_addr);
-            }
-#endif
             break;
         default:
             syslog(LOG_INFO, "Received type %d\n",icmph->icmp6_type);
@@ -384,12 +380,22 @@ void complete_info(int sock, uint8_t *outpack,int ttl)
     node_info_t *ni = search_incomplete(ttl, domain, updater, flag);
     if ( ni )
     {
-        if (!(ni->flag&NODE_INFO_NAME))
-            query_name(sock, outpack, &ni->local);
-
-        if ( !(ni->flag&NODE_INFO_GLOB))
+        if (!(ni->flag&NODE_INFO_NAME) && ni->name_queries < 3)
         {
+            ni->name_queries++;
+            query_name(sock, outpack, &ni->local);
+        }
+
+        if ( !(ni->flag&NODE_INFO_GLOB)&& ni->global_queries < 3)
+        {
+            ni->global_queries++;
             query_addr(sock, outpack, &ni->local);
+        }
+        else if ( (ni->flag&NODE_INFO_CHECK) == NODE_INFO_CHECK && ni->global_queries < 3)
+        {
+            ni->global_queries++;
+            query_addr(sock, outpack, &ni->local);
+            get_ipv4_addr(sock, ni, outpack, ttl);
         }
 
         if ( (ni->flag&NODE_INFO_GLOB && !(ni->flag & NODE_HAS_IPV4)) || (ni->flag & NODE_QUERY_MAP) )
@@ -397,11 +403,6 @@ void complete_info(int sock, uint8_t *outpack,int ttl)
             get_ipv4_addr(sock, ni, outpack, ttl);
         }
 
-        if ( (ni->flag&NODE_INFO_CHECK) == NODE_INFO_CHECK)
-        {
-            query_addr(sock, outpack, &ni->local);
-            get_ipv4_addr(sock, ni, outpack, ttl);
-        }
     }
 }
 

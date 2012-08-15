@@ -23,13 +23,13 @@ The gateway addresse is expected to be the
 64 SUBNET = 2001:db8:1234:4568::/64
 SERVER ADDRESSE 2001:db8:1234:5678::abcd
 
-The VPN slient netwotk device will get for example
+The VPN client network device will get for example
 the addresse 2001:db8:1234:4568:1:2ff:fe03:4
 
 The /48 subnet will be 2001:db8:1234::
 The /64 subnet will be 2001:db8:1234:4568::
 
-The server addresse (gateway can now be set to
+The server addresse (gateway) can now be set to
 2001:db8:1234:4568::abcd
 
 The needed variable are passed via the environment

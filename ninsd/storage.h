@@ -19,8 +19,11 @@ typedef struct node_info_s {
     time_t          last_seen;
     struct in6_addr local;
     char            name[NAME_SIZE_MAX+1];
+    int             name_queries;
     struct in6_addr global;
+    int             global_queries;
     struct in_addr  ipv4;
+    int             ipv4_queries;
 } node_info_t;
 
 extern int node_info_add_elem(struct in6_addr* addr, int flag);

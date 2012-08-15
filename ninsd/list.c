@@ -7,7 +7,7 @@
  *
  * Insert before the element pointed by **list a new list
  * element.
- * If *älist is null a new root element is created.
+ * If list is null a new root element is created.
  *
  * The data are not duplicated.
  *

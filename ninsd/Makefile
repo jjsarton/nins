@@ -64,6 +64,9 @@ install-init:
 	@cp ninsd.sh /etc/init.d/ninsd
 	@chmod a+x /etc/init.d/ninsd
 	@/etc/init.d/ninsd start
+	@if [ -e /etc/rc2.d ]; then \
+	         ln -s ../init.d/ninsd /etc/rc2.d/S20ninsd; \
+	fi
 	@if [ -e /etc/rc5.d ]; then \
 	         ln -s ../init.d/ninsd /etc/rc5.d/S20ninsd; \
 	fi
@@ -97,6 +100,9 @@ uninstall-systemd:
 
 uninstall-init:
 	@+/etc/init.d/ninsd stop
+	@if [ -e /etc/rc2.d/S20ninsd ]; then \
+	        rm -f /etc/rc2.d/S20ninsd;\
+	fi
 	@if [ -e /etc/rc5.d/S20ninsd ]; then \
 	        rm -f /etc/rc5.d/S20ninsd;\
 	fi

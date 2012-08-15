@@ -170,6 +170,7 @@ int node_info_add_global(struct in6_addr* local, struct in6_addr* global, int tt
     if ( elem )
     {
         ni = (node_info_t*)elem->data;
+        ni->global_queries = 0;
         if ( global )
         {
             memcpy(&ni->global, global, sizeof(*global));
@@ -204,6 +205,7 @@ int node_info_add_ipv4(struct in6_addr* local, struct in_addr* ipv4, int ttl, ch
     {
         ni = (node_info_t*)elem->data;
         ni->last_seen = time(NULL);
+        ni->ipv4_queries = 0;
         if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL )
         {
             ni->flag |= NODE_HAS_IPV4;
@@ -280,6 +282,7 @@ int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl
     if ( elem )
     {
         ni = (node_info_t*)elem->data;
+        ni->name_queries = 0;
         if ( !*ni->name )
         {
             if ( domain )
@@ -326,7 +329,7 @@ node_info_t *search_incomplete(int ttl, char *domain, char *updater, int get_ipv
     while(elem)
     {
         node_info_t *ni = (node_info_t *)elem->data;
-        if ( !(ni->flag & NODE_INFO_NAME) )
+        if ( !(ni->flag & NODE_INFO_NAME) && ni->global_queries < 3 )
         {
             return ni;
         }
@@ -344,8 +347,11 @@ node_info_t *search_incomplete(int ttl, char *domain, char *updater, int get_ipv
                     free(ni);
                     break; // entry must be removed no node_info ?
                 }
-                ret = ni; // call get addr from main loop
-                break;
+                if ( ni->global_queries++ < 3)
+                {
+                    ret = ni; // call get addr from main loop
+                    break;
+                }
             }
 
             if ( act_time > ni->last_seen + ttl - 1  && !(ni->flag&NODE_INFO_CHECK) )
@@ -353,6 +359,7 @@ node_info_t *search_incomplete(int ttl, char *domain, char *updater, int get_ipv
                 /* check if the node is alive */
                 ni->flag |= NODE_INFO_CHECK;
                 ni->last_seen = time(NULL);
+                ni->name_queries = ni->global_queries = ni->ipv4_queries = 0;
                 ret = ni; // check for availibility
                 break;
             }
@@ -363,6 +370,7 @@ node_info_t *search_incomplete(int ttl, char *domain, char *updater, int get_ipv
             /* if we have not got an answer for this node,
              * the node is no more available
              */
+            ni->name_queries = ni->global_queries = ni->ipv4_queries = 0;
             ni->last_seen = 0;
             del = 1;
             break;
