@@ -27,3 +27,14 @@ set_route
 
 This programm shall be used by tinc on the client
 and you have an IPv6 tunnel over IPv6.
+
+Windows
+-------
+
+There is no support for Node INformation queries
+within Windows. The directory wniqd contain a little
+server which will allow to ask the Windows systems
+for the global IPv6, the host name and possibly the
+IPv4 address. This implementation don't cover all
+specifications for RFC 4620 but is sufficient in order
+to perform an update of the name server.

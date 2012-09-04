@@ -219,7 +219,7 @@ static void usage(char *me)
 {
     printf("Syntax: %s [-f hosts_file]\n",me);
     printf("\t%s update the file /etc/hosts according to the\n",me);
-    printf("\tdatas passed by the ninscd/nins_update.sh\n");
+    printf("\tdatas passed by the ninsd/nins_update.sh\n");
     printf("\tThe -f hosts_file allow to perform tests without\n");
     printf("\tmodification of the real hosts file.\n");
 }

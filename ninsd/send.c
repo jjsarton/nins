@@ -153,3 +153,19 @@ int send_ra_solicit(int sock, uint8_t *buf)
     err = send_probe(sock, buf, &addr, p - buf, 255);
     return err;
 }
+
+int send_echo_query(int sock, uint8_t *buf)
+{
+    int err;
+    struct in6_addr addr;
+    /* set receiver address */
+    inet_pton(AF_INET6, "ff02::01", &addr);
+    struct icmp6_hdr *req;
+    req = (struct icmp6_hdr*)buf;
+    memset(req,0,sizeof(struct icmp6_hdr));
+    req->icmp6_type = ICMP6_ECHO_REQUEST;
+    req->icmp6_id = 1;
+    uint8_t *p = (uint8_t*)buf + sizeof(struct icmp6_hdr);
+    err = send_probe(sock, buf, &addr, p - buf, 255);
+    return err;
+}

@@ -9,6 +9,7 @@ extern int query_addr(int sock, uint8_t *buf, struct in6_addr *addr);
 extern int query_ipv4(int sock, uint8_t *buf, struct in6_addr *addr);
 extern int query_name(int sock, uint8_t *buf, struct in6_addr *addr);
 extern int send_ra_solicit(int sock, uint8_t *buf);
+extern int send_echo_query(int sock, uint8_t *buf);
 
 #if defined (__cplusplus) || defined (c_plusplus)
 }

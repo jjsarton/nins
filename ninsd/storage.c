@@ -170,9 +170,9 @@ int node_info_add_global(struct in6_addr* local, struct in6_addr* global, int tt
     if ( elem )
     {
         ni = (node_info_t*)elem->data;
-        ni->global_queries = 0;
         if ( global )
         {
+            ni->global_queries = 0;
             memcpy(&ni->global, global, sizeof(*global));
             ni->last_seen = time(NULL);
             ni->flag |= NODE_INFO_GLOB;
@@ -205,9 +205,9 @@ int node_info_add_ipv4(struct in6_addr* local, struct in_addr* ipv4, int ttl, ch
     {
         ni = (node_info_t*)elem->data;
         ni->last_seen = time(NULL);
-        ni->ipv4_queries = 0;
         if ( (ni->flag & NODE_INFO_ALL) == NODE_INFO_ALL )
         {
+            ni->ipv4_queries = 0;
             ni->flag |= NODE_HAS_IPV4;
             ni->flag = ni->flag & ~(NODE_QUERY_MAP);
             if ( memcmp(&ni->ipv4, ipv4, sizeof(*ipv4)) )
@@ -220,7 +220,7 @@ int node_info_add_ipv4(struct in6_addr* local, struct in_addr* ipv4, int ttl, ch
     return 1;
 }
 
-static void get_suffix(char *name, char *suffix)
+static void get_suffix(char *name, char *suffix, list_t *from)
 {
     int len = strlen(name);
     char letters[26];
@@ -233,7 +233,7 @@ static void get_suffix(char *name, char *suffix)
     if ( gethostname(host_name, sizeof(host_name)) == 0 )
     {
        cmp = strncmp(host_name, name, len);
-       if ( cmp == 0 || (cmp && (host_name[len] == '.')) )
+       if ( cmp == 0 && (cmp && (host_name[len] == '.')) )
        {
           *suffix='-';
        }
@@ -243,15 +243,18 @@ static void get_suffix(char *name, char *suffix)
     while (list)
     {
         elem = (node_info_t*)list->data;
-        if ( *elem->name )
+        if ( list != from )
         {
-           cmp = strncmp(elem->name, name, len);
-           if ( cmp == 0 || (cmp && (elem->name[len] == '.' || elem->name[len] == '-')) )
+           if ( *elem->name )
            {
-              *suffix='-';
-              if ( elem->name[len+1] && elem->name[len+2] && !elem->name[len+3] )
+              cmp = strncmp(elem->name, name, len);
+              if ( cmp == 0 || (cmp && (elem->name[len] == '.' || elem->name[len] == '-')) )
               {
-                 letters[tolower(elem->name[len+2])-'a'] = '1';
+                 *suffix='-';
+                 if ( elem->name[len+1] && elem->name[len+2] && !elem->name[len+3] )
+                 {
+                    letters[tolower(elem->name[len+2])-'a'] = '1';
+                 }
               }
            }
         }
@@ -277,19 +280,20 @@ int node_info_add_name(struct in6_addr* local, char* name, char *domain, int ttl
     int dlen = domain?strlen(domain)+1:0;
     list_t *elem;
     node_info_t *ni;
+
     elem = list_search(root, local, cpm_local_addr);
 
     if ( elem )
     {
         ni = (node_info_t*)elem->data;
-        ni->name_queries = 0;
         if ( !*ni->name )
         {
+            ni->name_queries = 0;
             if ( domain )
             {
                 char suffix[3];
                 memset(suffix, 0, sizeof(suffix));
-                get_suffix(name, suffix);
+                get_suffix(name, suffix,elem);
                 strncpy(ni->name, name, NAME_SIZE_MAX-dlen);
                 if ( *suffix )
                    strcat(ni->name,suffix);
@@ -325,7 +329,6 @@ node_info_t *search_incomplete(int ttl, char *domain, char *updater, int get_ipv
     node_info_t *ret = NULL;
     act_time = time(NULL);
     int del = 0;
-
     while(elem)
     {
         node_info_t *ni = (node_info_t *)elem->data;

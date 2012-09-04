@@ -125,6 +125,7 @@ int icmp_socket(char *name, int wait_for_if, struct in6_addr *addr)
     sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
     if ( sock > 0 )
     {
+
         ICMP6_FILTER_SETBLOCKALL(&filter);
         ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &filter);
         ICMP6_FILTER_SETPASS(ND_ROUTER_SOLICIT, &filter);

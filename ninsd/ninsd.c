@@ -86,6 +86,7 @@ static int ttl_max = TTL_MAX;
 static int sock = -1;
 static char *updater = "nsupdate";
 static uint8_t outpack[MAXPACKET];
+static int send_echo = 0;
 
 static char domain[NAME_SIZE_MAX];
 static int ttl = 0;
@@ -299,7 +300,8 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                     {
                         syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: %s", print_addr(&from->sin6_addr),"NO IPV6");
                         /* delete this entry */
-                        node_info_add_global(&from->sin6_addr,(struct in6_addr*)NULL, ttl, domain, updater);
+                        //node_info_add_global(&from->sin6_addr,(struct in6_addr*)NULL, ttl, domain, updater);
+node_info_add_elem(&from->sin6_addr, NODE_INFO_CHECK);
                     }
                 break;
                 case NI_QTYPE_IPV4ADDR:
@@ -314,8 +316,7 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                     else
                     {
                         syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: %s", print_addr(&from->sin6_addr),"NO IPV4");
-                        set_query_mapped(&from->sin6_addr);
-                        
+                        //set_query_mapped(&from->sin6_addr);
                     }
                 break;
                 default:
@@ -349,9 +350,17 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
 
         case ND_NEIGHBOR_ADVERT:
             /* ignore this */
+            syslog(LOG_INFO, "got ND_NEIGHBOR_ADVERT from %s\n", print_addr(&from->sin6_addr));
+            if ( memcmp(&from->sin6_addr,&own_addr, sizeof(own_addr)) )
+            {
+                node_info_add_elem(&from->sin6_addr, NODE_INFO_CHECK);
+            }
             break;
+	case ND_NEIGHBOR_SOLICIT:
+            syslog(LOG_INFO, "got ND_NEIGHBOR_SOLICIT from %s\n", print_addr(&from->sin6_addr));
+            break;	
         default:
-            syslog(LOG_INFO, "Received type %d\n",icmph->icmp6_type);
+            syslog(LOG_INFO, "Received type %d from %s\n",icmph->icmp6_type, print_addr(&from->sin6_addr));
         break;
     }
     return 0;
@@ -368,8 +377,9 @@ void get_ipv4_addr(int sock, node_info_t *ni, uint8_t *outpack,int ttl)
     {
         get_dynamic_ipv4(ni, map_file);
     }
-    else if ( get_ipv4 )
+    else if ( get_ipv4 && ni->name_queries < 3 )
     {
+        ni->name_queries++;
         query_ipv4(sock, outpack, &ni->local);
     }
 }
@@ -416,6 +426,9 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
     int cc;
     int polling = MSG_DONTWAIT;
     int send_echo_request = 1;
+    int echo = 0;
+    int first_time = 1;
+
     pollfd.fd = sock;
     pollfd.events = POLLIN|POLLPRI|POLLRDHUP|POLLERR|POLLHUP|POLLNVAL;
     pollfd.revents = 0;
@@ -466,9 +479,22 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
                 send_echo_request = 0;
             }
         }
+
+        if ( send_echo )
+        {
+            echo++;
+            if ( (ttl && ((echo > ttl) || (first_time && echo > 5))) )
+            {
+                echo=0;
+                first_time = 0;
+                send_echo_query(sock,outpack);
+            }
+            if ( ttl == 0 ) echo = 0;
+        }
     }
     return 0;
 }
+
 
 char *prgName = NULL;
 
@@ -494,7 +520,7 @@ int main(int argc, char **argv)
     else
         prgName = argv[0];
  
-    while( (c = getopt(argc, argv, "i:vft:s:m:4p:du:g:w")) > 0)
+    while( (c = getopt(argc, argv, "i:vft:s:m:4p:du:g:we")) > 0)
     {
         switch(c)
         {
@@ -537,6 +563,9 @@ int main(int argc, char **argv)
             break;
             case 'w':
                 wait_for_if=1;
+            break;
+            case 'e':
+                send_echo = 1;
             break;
             default:
                 usage(prgName);

@@ -16,7 +16,7 @@
 ninsd \- allow DDNS update of a name server as named.
 .SH SYNOPSIS
 .B ninsd
-.B "[ \-f ] [ \-v ] [ \-t ttl_max ] [ \-i interface] [ \-s updater] [ \-4 \| -m map_file ] [ \-p pid_file ]"
+.B "[ \-f ] [ \-v ] [ \-t ttl_max ] [ \-i interface] [ \-s updater] [ \-4 \| -m map_file ] [ \-p pid_file ] [ \-e ]"
 
 .SH DESCRIPTION
 .B ninsd
@@ -141,6 +141,12 @@ use update method need some rights not provided by the group
 .B ninsd
 will wait for the creation of the given device. This may be
 usefull if the interface is a virtual device as a tap.
+
+.TP
+.BR "\-e"
+.B ninsd
+Send echo requests (ping) to the address ff01::1. This is
+to be used if Windows systems have to be handled correctly.
 
 
 .SH FILES
