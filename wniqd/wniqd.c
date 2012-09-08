@@ -1,12 +1,19 @@
-#include <stdio.h>
-#include <stdlib.h>
-
 #define _WIN32_WINNT 0x0501
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <stdint.h>
 #include <iphlpapi.h>
+
+// lcc don't know this
+#ifndef SIO_ROUTING_INTERFACE_QUERY
+#define SIO_ROUTING_INTERFACE_QUERY   _WSAIORW(IOC_WS2,20)
+#endif
+#ifndef IPPROTO_ICMPV6
+#define  IPPROTO_ICMPV6  58
+#endif
 
 static int debug = 0;
 
@@ -60,8 +67,8 @@ struct icmp6_hdr
 #define ICMP6_PARAMPROB_OPTION        2 /* unrecognized IPv6 option */
 
 struct ni_hdr {
-	struct icmp6_hdr ni_u;
-	unsigned char ni_nonce[8];
+    struct icmp6_hdr ni_u;
+    unsigned char ni_nonce[8];
 };
 
 #define ni_type  ni_u.icmp6_type
@@ -118,11 +125,11 @@ const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
     }
     else if (af == AF_INET6)
     {
-        struct sockaddr_in6 in;
+        SOCKADDR_IN6 in;
         memset(&in, 0, sizeof(in));
         in.sin6_family = AF_INET6;
         memcpy(&in.sin6_addr, src, sizeof(struct in_addr6));
-        getnameinfo((struct sockaddr *)&in, sizeof(struct sockaddr_in6), dst, cnt, NULL, 0, NI_NUMERICHOST);
+        getnameinfo((struct sockaddr *)&in, sizeof(SOCKADDR_IN6), dst, cnt, NULL, 0, NI_NUMERICHOST);
         return dst;
     }
     return NULL;
@@ -153,29 +160,13 @@ int inet_pton(int af, const char *src, void *dst)
 }
 #endif
 
-void print_hex(unsigned char *buf, int len)
-{
-   int i;
-   int j = 0;
-   for(i=0; i < len; i +=16)
-   {
-      for ( j = 0; j < 16 && i+j < len; j++)
-      {
-         printf("%02x ",buf[i+j]);
-      }
-      printf("\n");
-   }
-   if ( j < 15 ) printf("\n");
-}
-
-int get_addresses( struct sockaddr_in6 *ll, int family, unsigned char *buf, int size)
+int get_addresses( SOCKADDR_IN6 *ll, int family, unsigned char *buf, int size)
 {
 #define WORKING_BUFFER_SIZE 15000
 #define MAX_TRIES 3
 #define MALLOC(x) HeapAlloc(GetProcessHeap(), 0, (x))
 #define FREE(x) HeapFree(GetProcessHeap(), 0, (x))
 
-    DWORD dwSize = 0;
     DWORD dwRetVal = 0;
     unsigned int i = 0;
     ULONG outBufLen = 0;
@@ -221,7 +212,7 @@ int get_addresses( struct sockaddr_in6 *ll, int family, unsigned char *buf, int 
                 {
                     if ( pUnicast->Next == 0 )
                     {
-                        struct sockaddr_in6 *sockaddr = (struct sockaddr_in6*)pUnicast->Address.lpSockaddr;
+                        SOCKADDR_IN6 *sockaddr = (SOCKADDR_IN6*)pUnicast->Address.lpSockaddr;
                         if ( memcmp(&sockaddr->sin6_addr, &ll->sin6_addr, sizeof(sockaddr->sin6_addr)) == 0 )
                         {
                            ifFound = 1;
@@ -236,7 +227,7 @@ int get_addresses( struct sockaddr_in6 *ll, int family, unsigned char *buf, int 
                     for (i = 0; i < j ; i++) {
                         if ( family == AF_INET6 && pUnicast->Address.lpSockaddr->sa_family==family )
                         {
-                            struct sockaddr_in6 *sa6 = (struct sockaddr_in6*)pUnicast->Address.lpSockaddr;
+                            SOCKADDR_IN6 *sa6 = (SOCKADDR_IN6*)pUnicast->Address.lpSockaddr;
                             memcpy(buf, &sa6->sin6_addr, 16);
                             retVal = 16;
                         }
@@ -262,7 +253,7 @@ int get_addresses( struct sockaddr_in6 *ll, int family, unsigned char *buf, int 
     return retVal;
 }
 
-void makeCheckSum(unsigned char *ad,struct sockaddr_in6 *src, struct ni_hdr *ni_hdr, int len)
+void makeCheckSum(unsigned char *ad, SOCKADDR_IN6 *src, struct ni_hdr *ni_hdr, int len)
 {
     unsigned char buf[2048];
     unsigned char *s = buf;
@@ -345,7 +336,7 @@ int main(int argc, char **argv)
             fflush(stdout);
         }
         /* send to :: in order to avoid error WSAEINVAL on recvfrom() */
-        struct sockaddr_in6 dstTmp;
+        SOCKADDR_IN6 dstTmp;
         memset(&dstTmp,0,sizeof(dstTmp));
         dstTmp.sin6_family=AF_INET6;
         sendto(sock,rbuf, 0, 0, (struct sockaddr*)&dstTmp, sizeof(dstTmp));
@@ -357,7 +348,7 @@ int main(int argc, char **argv)
 
         for (;;)
         {
-           struct sockaddr_in6 src;
+           SOCKADDR_IN6 src;
            memset(&src,0,sizeof(src));
            src.sin6_family = AF_INET6;
            int len = sizeof(src);
@@ -382,10 +373,9 @@ int main(int argc, char **argv)
                        unsigned char dest[16];
                        memcpy(dest, ad, 16);
                        inet_ntop(AF_INET6, ad, sub, sizeof(sub));
-                       struct sockaddr_in6 via;
+                       SOCKADDR_IN6 via;
                        if ( strcmp(sub,"ff02::1") == 0 )
                        {
-                           uint32_t index;
                            DWORD size;
                            size = 0;
                            if (get_routing_address(sock, &src, &via,&size) == 0 )
@@ -404,7 +394,7 @@ int main(int argc, char **argv)
                            via.sin6_family = AF_INET6;
                            memcpy(&via.sin6_addr, dest, 16);
                        }
-                       
+
                        /* answer to sender */
                        ni_hdr->ni_type = ICMPV6_NI_REPLY;
                        int qtype = htons(ni_hdr->ni_qtype);
@@ -530,7 +520,6 @@ int main(int argc, char **argv)
                return 1;
            }
         }
-        return 0;
     }
     return 1;
 }

@@ -225,7 +225,7 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
     struct cmsghdr *c;
     struct icmp6_hdr *icmph;
 
-    /* don't process if this is not frm a link local address */
+    /* don't process if this is not from a link local address */
     if ( !IN6_IS_ADDR_LINKLOCAL(&from->sin6_addr) )
         return 0;
 
@@ -253,10 +253,9 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
     {
         case ICMP6_ECHO_REPLY:
             syslog(LOG_INFO, "got ICMP6_ECHO_REPLY from %s", print_addr(&from->sin6_addr));
-            if ( icmph->icmp6_id == 0)
+            if ( memcmp(&own_addr, &from->sin6_addr, sizeof(own_addr)) )
             {
-                /* answer from our interface */
-                memcpy(&own_addr, &from->sin6_addr, sizeof(own_addr));
+                node_info_add_elem(&from->sin6_addr, NODE_INFO_CHECK);
             }
         break;
         case ICMPV6_NI_REPLY:
@@ -299,9 +298,8 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                     else
                     {
                         syslog(LOG_INFO,"got ICMPV6_NI_REPLY from %s: %s", print_addr(&from->sin6_addr),"NO IPV6");
-                        /* delete this entry */
-                        //node_info_add_global(&from->sin6_addr,(struct in6_addr*)NULL, ttl, domain, updater);
-node_info_add_elem(&from->sin6_addr, NODE_INFO_CHECK);
+                        /* unknown node ? */
+                        node_info_add_elem(&from->sin6_addr, NODE_INFO_CHECK);
                     }
                 break;
                 case NI_QTYPE_IPV4ADDR:
@@ -473,10 +471,8 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
             complete_info(sock, outpack, ttl);
             if ( send_echo_request )
             {
-                struct in6_addr addr;
-                inet_pton(AF_INET6, "ff02::1", &addr);
-                query_addr(sock, outpack, &addr);
                 send_echo_request = 0;
+                send_echo_query(sock,outpack);
             }
         }
 

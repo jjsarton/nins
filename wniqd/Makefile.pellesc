@@ -1,0 +1,20 @@
+
+INCLUDE = -I$(PellesCDir)\Include\Win -I$(PellesCDir)\Include
+LIB     = /LIBPATH:$(PellesCDir)\Lib\Win /LIBPATH:$(PellesCDir)\Lib
+
+CFLAGS = /std:C99 -Tx86-coff /Ot /Ob1 /fp:precise /W1 /Gz /Ze $(INCLUDE)
+ASFLAGS = -AIA32 -Gz
+
+LINK=polink
+CC=pocc
+
+LDFLAGS = /subsystem:console /machine:x86 $(LIB) kernel32.lib user32.lib gdi32.lib comctl32.lib comdlg32.lib advapi32.lib delayimp.lib wsock32.lib ws2_32.lib iphlpapi.lib 
+
+wniqd.exe: wniqd.c
+	$(CC) $(CFLAGS) wniqd.c /Fo wniqd.obj
+	$(LINK) $(LDFLAGS) /out:$@ wniqd.obj
+	del wniqd.obj
+
+clean:
+	del wniqd.exe
+
