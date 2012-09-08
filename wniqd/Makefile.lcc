@@ -1,0 +1,17 @@
+CC=lcc
+LINK=lcclnk
+LIBS="$(LCCROOT)\lib\wsock32.lib" "$(LCCROOT)\lib\ws2_32.lib" "$(LCCROOT)\lib\iphlpapi.lib"
+
+all: wniqd.exe
+
+wniqd.exe: wniqd.obj
+	@echo LCCROOT=$(LCCROOT)
+	$(LINK)  -subsystem console -o wniqd.exe wniqd.obj $(LIBS)
+	del wniqd.obj
+
+wniqd.obj: wniqd.c
+	$(CC) -o wniqd.obj wniqd.c $(CFLAGS)
+
+clean:
+	del *.exe
+

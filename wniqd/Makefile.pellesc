@@ -1,6 +1,6 @@
 
-INCLUDE = -I$(PellesCDir)\Include\Win -I$(PellesCDir)\Include
-LIB     = /LIBPATH:$(PellesCDir)\Lib\Win /LIBPATH:$(PellesCDir)\Lib
+INCLUDE = -I"$(PellesCDir)\Include\Win" -I"$(PellesCDir)\Include"
+LIB     = /LIBPATH:"$(PellesCDir)\Lib\Win" /LIBPATH:"$(PellesCDir)\Lib"
 
 CFLAGS = /std:C99 -Tx86-coff /Ot /Ob1 /fp:precise /W1 /Gz /Ze $(INCLUDE)
 ASFLAGS = -AIA32 -Gz

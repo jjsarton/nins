@@ -2,12 +2,12 @@ wniqd
 -----
 
 wniqd is a simple user space programm for windows
-and implement paetially RFC 4620. This programm is
+and implement partially RFC 4620. This programm is
 intended to be used with ninsd which has to run on
 a Linux system.
 
-This version can be compiled with cygwin, lcc or
-PellesC.
+This version can be compiled with cygwin, minggw,
+lcc or PellesC.
 This version what compiled with cygwin, lcc and
 PellesC under Windows XP SP3. Due to the absence
 of other Windows systems, I what not able to test
@@ -48,6 +48,13 @@ Deinstalling wniqd:
 open a  "Cygwin Terminal", go to the winqd directory
 and type "make clean"
 
+Build wniqd with mingw:
+=======================
+open the msys terminal, go to the directory
+containing wniqd.c annd issue the command
+
+make
+
 
 Build wniqd with lcc:
 =====================
@@ -56,9 +63,9 @@ wniqd.c.
 Set the variable LCCROOT and PATH in order to be
 able to build wniqd.exe and call make:
 
-set LCCROOT=C:\lcc
-set PATH=%PATH%;%LCCROOT%/bin
-make
+set LCCROOT="C:\lcc"
+set PATH="%PATH%;%LCCROOT%/bin"
+make -f Makefile.lcc
 
 Remarks:
 --------
@@ -68,27 +75,22 @@ You may need to set LCCROOT to the correct path.
 
 Build wniqd with PellesC:
 =========================
-Open a cmd window and go to the folder containing
-wniqd.c:
+Open the "Pelles C command Prompt" and go to the folder
+containing wniqd.c. Then enter within the console:
 
-set PellesCDir=C:\Programs\PellesC
-set PATH=%PATH%;%PellesCDir%\Bin
-pomake -f Makefile.pellesc
+pomake /F Makefile.pellesc
 
 Remarks:
 --------
-We assume, here that PellesC is installed under
-C:\Programs\PellesC\.
-You may need to set PellesCDir to the correct path.
 
 The provided makefile (Makefile.pellesc) is for
-a 32 bit system. For 64 bit systemes I don't know
-if this is OK.
+a 32 bit system. I assume that this will run as 
+service on a 64 bits system.
 
 
 install wniqd.exe as service:
 =============================
-If you have build wniqd.exe with lcc or PellesC
+If you have build wniqd.exe with minggw, lcc or PellesC
 you need a tool for running wniqd.exe as a serveice.
 
 Such a tool can be found at http://nssm.cc/.
