@@ -84,8 +84,9 @@ Remarks:
 --------
 
 The provided makefile (Makefile.pellesc) is for
-a 32 bit system. I assume that this will run as 
-service on a 64 bits system.
+a 32 bit system. If you have a 64 bits system you
+should use the file Makefile.pellesc54 insteads of
+the file Makefile.pellesc.
 
 
 install wniqd.exe as service:
@@ -97,6 +98,11 @@ Such a tool can be found at http://nssm.cc/.
 Download nssm-2.15.zip, extract the file and
 got to the directory nssm-2.15\win32 or  nssm-2.15\win64
 according to your system and run:
+
+nssm.exe install
+
+This command must be run as administrator, on Windows 7
+you should open an administrator command and the run:
 
 nssm.exe install
 
