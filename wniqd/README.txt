@@ -16,22 +16,6 @@ this on Vista or Windows 7.
 wniqd shall be installed as a service and must run
 with administrator privilege.
 
-Windows XP send router solicitation via multicast
-addresses. Due to this, ninsd will not be able to
-detect the presence of a new system. There are two
-ways in order to get this working:
-
-1) radvd can be configured for ignoring multicast
-   solicitation ( flag UnicastOnly on )
-2) ninsd can be instructed to periodically send
-   a ping via multicast, the windows client will
-   then respond to the icmp message and also send
-   a beughbor advert. This can be enabled by the
-   ninsd parameter "-e".
-
-The most secure method is 2) but this implies
-a lot of network traffic.
-
 Build wniqd with Cygwin:
 ========================
 Install cygwin and launch the "Cygwin Terminal"

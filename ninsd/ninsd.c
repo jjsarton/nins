@@ -218,16 +218,13 @@ void get_dynamic_ipv4(node_info_t *ni, char *map_file)
     }
 }
 
-int parse_reply(struct msghdr *msg, int cc, void *addr)
+int parse_reply(struct msghdr *msg, int cc, void *addr, int *echo)
 {
     struct sockaddr_in6 *from = addr;
     uint8_t *buf = msg->msg_iov->iov_base;
     struct cmsghdr *c;
     struct icmp6_hdr *icmph;
-
-    /* don't process if this is not from a link local address */
-    if ( !IN6_IS_ADDR_LINKLOCAL(&from->sin6_addr) )
-        return 0;
+    struct in6_addr any = IN6ADDR_ANY_INIT;
 
     for (c = CMSG_FIRSTHDR(msg); c; c = CMSG_NXTHDR(msg, c)) {
         if (c->cmsg_level != SOL_IPV6)
@@ -249,6 +246,20 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
     if (cc < 8) {
         return 1;
     }
+
+    if ( memcmp(&from->sin6_addr, &any, sizeof(any)) == 0 &&
+         icmph->icmp6_type == ND_ROUTER_SOLICIT)
+    {
+        syslog(LOG_INFO,"got ND_ROUTER_ADVERT from %s\n", print_addr(&from->sin6_addr));
+        /* send mc icmp echo query */
+        *echo = 2;
+        return 1;
+    }
+
+    /* don't process if this is not from a link local address */
+    if ( !IN6_IS_ADDR_LINKLOCAL(&from->sin6_addr) )
+        return 0;
+
     switch (icmph->icmp6_type)
     {
         case ICMP6_ECHO_REPLY:
@@ -345,7 +356,6 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                 ttl = ttl_max;
             }
         break;
-
         case ND_NEIGHBOR_ADVERT:
             /* ignore this */
             syslog(LOG_INFO, "got ND_NEIGHBOR_ADVERT from %s\n", print_addr(&from->sin6_addr));
@@ -354,7 +364,7 @@ int parse_reply(struct msghdr *msg, int cc, void *addr)
                 node_info_add_elem(&from->sin6_addr, NODE_INFO_CHECK);
             }
             break;
-	case ND_NEIGHBOR_SOLICIT:
+        case ND_NEIGHBOR_SOLICIT:
             syslog(LOG_INFO, "got ND_NEIGHBOR_SOLICIT from %s\n", print_addr(&from->sin6_addr));
             break;	
         default:
@@ -426,6 +436,8 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
     int send_echo_request = 1;
     int echo = 0;
     int first_time = 1;
+    int req_echo=0;
+    int pollret=0;
 
     pollfd.fd = sock;
     pollfd.events = POLLIN|POLLPRI|POLLRDHUP|POLLERR|POLLHUP|POLLNVAL;
@@ -436,7 +448,7 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
 
     for(;;)
     {
-        poll(&pollfd, 1, 1000);
+        pollret = poll(&pollfd, 1, 1000);
 
         if ( (pollfd.revents & POLLIN) == POLLIN )
         {
@@ -460,7 +472,7 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
             }
             else
             {
-                parse_reply(&msg, cc, addrbuf);
+                parse_reply(&msg, cc, addrbuf, &req_echo);
                 if ( ttl == 0 )
                     send_echo_request = 1;
             }
@@ -474,6 +486,12 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
                 send_echo_request = 0;
                 send_echo_query(sock,outpack);
             }
+        }
+        if ( pollret == 0 && req_echo )
+        {
+            if ( req_echo )
+               req_echo--;
+            send_echo_query(sock,outpack);
         }
 
         if ( send_echo )
