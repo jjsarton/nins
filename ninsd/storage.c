@@ -387,6 +387,11 @@ node_info_t *search_incomplete(int ttl, char *domain, char *updater, int get_ipv
 static void call_nsupdate(node_info_t *info, int ttl, char *domain, char *updater)
 {
     char str[256];
+    if ( *info->name == '\0' )
+    {
+        return;
+    }
+ 
     FILE *p = popen(updater, "w");
     if ( p )
     {
@@ -429,7 +434,7 @@ static void call_nsupdate(node_info_t *info, int ttl, char *domain, char *update
     }
     else
     {
-        syslog(LOG_ERR,"failed to open pile; %s\n",strerror(errno));
+        syslog(LOG_ERR,"failed to open pipe; %s\n",strerror(errno));
     }
 }
 

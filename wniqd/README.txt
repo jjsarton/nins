@@ -103,3 +103,16 @@ entered.
 If sc is not installed on your system you can use
 the graphical tools provided by your system.
 
+Wniqd and Firewall
+==================
+
+The default Windows Firewall block first all messages
+from the network and allowing all icmp frame to be
+accepted is not sufficient, the message code used for
+Node Information Queries are always blocked.
+One solution constist to disable the firewal, this
+may only be acceptable within a trusted environment.
+The best solution is to install a third party firewall
+as SoftPerfect PersonalFirewall (http://softperfect.com)
+which allows a greater flexibility.
+

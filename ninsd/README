@@ -202,6 +202,140 @@ ptrtd -p 2001:db8:cafe:beef::
 in order to access IPv4 computer from the
 IPv6 only machines.
 
+1.3.2.1) unbound:
+-----------------
+If you use undound as name server you must modify the
+start parameters for ninsd within the file /etc/default/ninsd
+or /etc/sysconfig/ninsd.
+NINSD_IFACE='-i eth0 -s /usr/sbin/update-unbound.sh'
+and then copy the file ninsd/utilities/update-unbound.sh
+to /usr/sbin
+
+You have also to configure unbound (file
+/etc/unbound/uunbound.conf)
+This file must contain the following:
+
+===============================================================
+server:
+        local-zone: "localnet." static
+        local-data: "server.localnet. IN A 192.168.1.2"
+        local-data: "server.localnet. IN AAAA 2001:db8:1:1::1"
+
+forward-zone:
+        name: "."
+        forward-addr: 2001:4860:4860::8888@53
+        forward-addr: 8.8.8.8::8888@53
+===============================================================
+
+localnet. is the domain you have choosed
+server is the name for your server and the IPv4 Addresse
+192.168.1.2 must comply to your network
+The IPv6 Addresse is to be set to the proper value
+
+The forwards addresses I have here are those for
+google-public-dns-a.google.com. You may also choose
+other public reachable servers.
+
+If you wan't to use DNS64 you should install totd and
+configure unbound as follow:
+
+===============================================================
+server:
+        port: 54
+        interface: ::1
+        local-zone: "localnet." static
+        local-data: "server.localnet. IN A 192.168.1.2"
+        local-data: "server.localnet. IN AAAA 2001:db8:1:1::1"
+
+forward-zone:
+        name: "."
+        forward-addr: 2001:4860:4860::8888@53
+        forward-addr: 8.8.8.8::8888@53
+===============================================================
+
+and create the file /etc/totd.conf with the following content:
+
+===============================================================
+forwarder 127.0.0.1 port 54
+forwarder ::1 port 54
+prefix 2001:db8:1:64::
+port 53
+===============================================================
+
+The file /etc/default/totd or /etc/sysconfig/totd 
+
+shall not contain any start options for totd. If the file
+contain somme option, delete them or insert a '#' at the
+begin of the options lines.
+
+1.4) gogoc tunnel:
+------------------
+If you use a gogoc tunnel, you should make a little
+correction for the file:
+/usr/share/gogoc/template/linux.sh
+Near to the end if this file you will find the
+following:
+
+==========================================
+  cat > "$rtadvdconfigfile" <<EOF
+##### rtadvd.conf made by gogoCLIENT ####
+interface $TSP_HOME_INTERFACE
+{
+  AdvSendAdvert on;
+  AdvLinkMTU 1280;
+  prefix $TSP_PREFIX::/64
+  {
+    AdvOnLink on;
+    AdvAutonomous on;
+  };
+};
+EOF
+==========================================
+
+This should be corrected as follow:
+
+==========================================
+  cat > "$rtadvdconfigfile" <<EOF
+##### rtadvd.conf made by gogoCLIENT ####
+interface $TSP_HOME_INTERFACE
+{
+  AdvSendAdvert on;
+  AdvLinkMTU 1280;
+  MinRtrAdvInterval 300;
+  MaxRtrAdvInterval 600;
+  prefix $TSP_PREFIX::/64
+  {
+    AdvOnLink on;
+    AdvAutonomous on;
+  };
+  RDNSS  $TSP_PREFIX::1 { };
+  DNSSL localnet { };
+};
+EOF
+==========================================
+
+You may also replace the line:
+
+==========================================
+Exec $rtadvd -u radvd -p $rtadvd_pid -C $rtadvdconfigfile
+==========================================
+
+with:
+
+==========================================
+Exec $rtadvd -u radvd 
+==========================================
+
+which will restart the previously stopped radvd daemon
+with you original settings.
+
+1.5) aiccu:
+###########
+
+If you use a sixxs tunnel you should only adapt the
+files /etc/radvd.conf and /etc/unbound/unbound.conf
+according to your needs.
+
 2) Client side:
 ---------------
 

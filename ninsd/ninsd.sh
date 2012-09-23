@@ -1,4 +1,17 @@
 #!/bin/sh
+### BEGIN INIT INFO
+# Provides:          ninsd
+# Required-Start:    $network $local_fs
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Node Information Queries server
+# Description: NINSD is a little server which will query attached node
+#               for there IPv6 Addresse and name and then update the
+#               name server.
+### END INIT INFO
 
 if [ -e /etc/default/ninsd ]
 then

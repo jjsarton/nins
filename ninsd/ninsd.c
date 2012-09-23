@@ -36,6 +36,10 @@
 #include "version.h"
 
 #define MAXPACKET 4096
+// send icmpv6 requests all 15 seconds after a router solicitation on ''
+// arrived. The max time is according to this setting 3 minutes
+// the windows system must be up within this time
+#define MAX_ECHO_REQUESTS 12
 
 /* check at last every 10 minute for life */
 #define TTL_MAX 600
@@ -86,7 +90,6 @@ static int ttl_max = TTL_MAX;
 static int sock = -1;
 static char *updater = "nsupdate";
 static uint8_t outpack[MAXPACKET];
-static int send_echo = 0;
 
 static char domain[NAME_SIZE_MAX];
 static int ttl = 0;
@@ -252,7 +255,7 @@ int parse_reply(struct msghdr *msg, int cc, void *addr, int *echo)
     {
         syslog(LOG_INFO,"got ND_ROUTER_ADVERT from %s\n", print_addr(&from->sin6_addr));
         /* send mc icmp echo query */
-        *echo = 2;
+        *echo = MAX_ECHO_REQUESTS;
         return 1;
     }
 
@@ -434,10 +437,9 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
     int cc;
     int polling = MSG_DONTWAIT;
     int send_echo_request = 1;
-    int echo = 0;
-    int first_time = 1;
     int req_echo=0;
     int pollret=0;
+    time_t req_time = 0;
 
     pollfd.fd = sock;
     pollfd.events = POLLIN|POLLPRI|POLLRDHUP|POLLERR|POLLHUP|POLLNVAL;
@@ -487,23 +489,21 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
                 send_echo_query(sock,outpack);
             }
         }
-        if ( pollret == 0 && req_echo )
-        {
-            if ( req_echo )
-               req_echo--;
-            send_echo_query(sock,outpack);
-        }
 
-        if ( send_echo )
+        if ( pollret == 0 && req_echo > 0 )
         {
-            echo++;
-            if ( (ttl && ((echo > ttl) || (first_time && echo > 5))) )
+            if ( req_time == 0 )
             {
-                echo=0;
-                first_time = 0;
-                send_echo_query(sock,outpack);
+                req_time = time(NULL);
+                continue;
             }
-            if ( ttl == 0 ) echo = 0;
+
+            if ( req_time + 15 <= time(NULL) )
+            {
+               req_echo--;
+               send_echo_query(sock,outpack);
+               req_time = time(NULL) + 15;
+            }
         }
     }
     return 0;
@@ -534,7 +534,7 @@ int main(int argc, char **argv)
     else
         prgName = argv[0];
  
-    while( (c = getopt(argc, argv, "i:vft:s:m:4p:du:g:we")) > 0)
+    while( (c = getopt(argc, argv, "i:vft:s:m:4p:du:g:w")) > 0)
     {
         switch(c)
         {
@@ -577,9 +577,6 @@ int main(int argc, char **argv)
             break;
             case 'w':
                 wait_for_if=1;
-            break;
-            case 'e':
-                send_echo = 1;
             break;
             default:
                 usage(prgName);

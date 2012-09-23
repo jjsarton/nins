@@ -6,6 +6,7 @@
 #include <ws2tcpip.h>
 #include <stdint.h>
 #include <iphlpapi.h>
+#include <ws2ipdef.h>
 
 // lcc don't know this
 #ifndef SIO_ROUTING_INTERFACE_QUERY
@@ -302,7 +303,7 @@ static char str[INET6_ADDRSTRLEN];
 static char name[256];
 static char sub[INET6_ADDRSTRLEN];
 
-int main(int argc, char **argv)
+int __cdecl main(int argc, char **argv)
 {
     if ( argc > 1 && strcmp(argv[1],"-d")==0 )
         debug=1;
@@ -339,20 +340,34 @@ int main(int argc, char **argv)
         SOCKADDR_IN6 dstTmp;
         memset(&dstTmp,0,sizeof(dstTmp));
         dstTmp.sin6_family=AF_INET6;
-        sendto(sock,rbuf, 0, 0, (struct sockaddr*)&dstTmp, sizeof(dstTmp));
+        sendto(sock, (char*)rbuf, 0, 0, (struct sockaddr*)&dstTmp, sizeof(dstTmp));
         if ( debug )
         {
             printf("Send via %d done\n",sock);
             fflush(stdout);
         }
 
+#if 1
+        /* allow us to receive multicast ICMPv6 frames which are not processed
+         * by the kernel itself.
+         */
+        struct ipv6_mreq multicastRequest;  /* Multicast address join structure */
+        unsigned char mc[16] = { 0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 };
+        multicastRequest.ipv6mr_interface=0;
+        memcpy(&multicastRequest.ipv6mr_multiaddr,mc, sizeof(multicastRequest.ipv6mr_multiaddr));
+        if ( setsockopt(sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, (char*) &multicastRequest, sizeof(multicastRequest)) != 0 )
+        {
+            printf("Join ff02::1 failed error %d\n",WSAGetLastError());
+            fflush(stdout);
+        }
+#endif
         for (;;)
         {
            SOCKADDR_IN6 src;
            memset(&src,0,sizeof(src));
            src.sin6_family = AF_INET6;
            int len = sizeof(src);
-           int rec = recvfrom(sock, rbuf, sizeof(rbuf), 0, (struct sockaddr*)&src, &len);
+           int rec = recvfrom(sock, (char*)rbuf, sizeof(rbuf), 0, (struct sockaddr*)&src, &len);
 
            if ( rec > 0 )
            {
@@ -380,8 +395,8 @@ int main(int argc, char **argv)
                            size = 0;
                            if (get_routing_address(sock, &src, &via,&size) == 0 )
                            {
-                               inet_ntop(AF_INET6, ad, sub, sizeof(via));
-                               printf("via: %s\n", sub);
+                               printf("Recedived via: %s\n", (char*)sub);
+                               memcpy(dest, &via.sin6_addr, 16);
                            }
                            else
                            {
@@ -425,7 +440,7 @@ int main(int argc, char **argv)
                                ni_hdr->ni_flags = 0;
                                ni_hdr->ni_cksum = 0;
                                makeCheckSum(dest, &src, ni_hdr, l-rbuf);
-                               sendto(sock, rbuf, l-rbuf,  0, (struct sockaddr*)&src, sizeof(src));
+                               sendto(sock, (char*)rbuf, l-rbuf,  0, (struct sockaddr*)&src, sizeof(src));
                            break;
                            case NI_QTYPE_IPV4ADDR:
                                if ( ni_hdr->ni_flags != 0 )
@@ -454,7 +469,7 @@ int main(int argc, char **argv)
                                ni_hdr->ni_flags = 0;
                                ni_hdr->ni_cksum = 0;
                                makeCheckSum(dest, &src, ni_hdr, l-rbuf);
-                               sendto(sock, rbuf, l-rbuf,  0, (struct sockaddr*)&src, sizeof(src));
+                               sendto(sock, (char*)rbuf, l-rbuf,  0, (struct sockaddr*)&src, sizeof(src));
                            break;
                            case NI_QTYPE_NAME:
                                if ( ni_hdr->ni_flags != 0 )
@@ -475,7 +490,7 @@ int main(int argc, char **argv)
                                /* copy name */
                                *l = 0;
                                unsigned char *d = l+1;
-                               unsigned char *s = name;
+                               unsigned char *s = (unsigned char*)name;
                                while( *s )
                                {
                                   if ( *s == '.' )
@@ -500,7 +515,7 @@ int main(int argc, char **argv)
                                ni_hdr->ni_flags = 0;
                                ni_hdr->ni_cksum = 0;
                                makeCheckSum(dest, &src, ni_hdr, l-rbuf);
-                               sendto(sock, rbuf, l-rbuf,  0, (struct sockaddr*)&src, sizeof(src));
+                               sendto(sock, (char*)rbuf, l-rbuf,  0, (struct sockaddr*)&src, sizeof(src));
                            break;
                            default: /* ignore */
                                if ( debug )

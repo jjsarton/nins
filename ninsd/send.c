@@ -156,6 +156,7 @@ int send_ra_solicit(int sock, uint8_t *buf)
 
 int send_echo_query(int sock, uint8_t *buf)
 {
+    static unsigned short seq =1;
     int err;
     struct in6_addr addr;
     /* set receiver address */
@@ -164,7 +165,12 @@ int send_echo_query(int sock, uint8_t *buf)
     req = (struct icmp6_hdr*)buf;
     memset(req,0,sizeof(struct icmp6_hdr));
     req->icmp6_type = ICMP6_ECHO_REQUEST;
-    req->icmp6_id = 1;
+    req->icmp6_id = htons(getpid());
+    req->icmp6_seq = htons(seq);
+    if ( seq == 65535 )
+        seq = 1;
+    else
+        seq++;
     uint8_t *p = (uint8_t*)buf + sizeof(struct icmp6_hdr);
     err = send_probe(sock, buf, &addr, p - buf, 255);
     return err;
