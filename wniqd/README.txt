@@ -47,8 +47,8 @@ wniqd.c.
 Set the variable LCCROOT and PATH in order to be
 able to build wniqd.exe and call make:
 
-set LCCROOT="C:\lcc"
-set PATH="%PATH%;%LCCROOT%/bin"
+set LCCROOT=C:\lcc
+set PATH=%PATH%;%LCCROOT%\bin
 make -f Makefile.lcc
 
 Remarks:

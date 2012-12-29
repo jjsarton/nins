@@ -48,7 +48,7 @@ install-systemd:
 	@make build_service_file
 	@cp ninsd.service.temp /lib/systemd/system/ninsd.service
 	@source /etc/*/ninsd; \
-	if [ x"$$NINSD_IFACE" != x ]; then \
+	if [ x"$$NINSD_OPTIONS" != x ]; then \
 	    systemctl enable ninsd.service; \
 	    systemctl start ninsd.service; \
 	fi

@@ -235,6 +235,7 @@ static void get_suffix(char *name, char *suffix, list_t *from)
        cmp = strncmp(host_name, name, len);
        if ( cmp == 0 && (cmp && (host_name[len] == '.')) )
        {
+//printf("Set suffix - :: 1\n");
           *suffix='-';
        }
     }
@@ -247,11 +248,13 @@ static void get_suffix(char *name, char *suffix, list_t *from)
         {
            if ( *elem->name )
            {
+//printf("CMP %s %s %d\n",elem->name, name, len);
               cmp = strncmp(elem->name, name, len);
-              if ( cmp == 0 || (cmp && (elem->name[len] == '.' || elem->name[len] == '-')) )
+              if ( cmp == 0 && (cmp && (elem->name[len] == '.' || elem->name[len] == '-')) )
               {
                  *suffix='-';
-                 if ( elem->name[len+1] && elem->name[len+2] && !elem->name[len+3] )
+ //printf("Set suffix - :: 2 %d %p %s \n",cmp,  elem, elem->name);
+                if ( elem->name[len+1] && elem->name[len+2] && !elem->name[len+3] )
                  {
                     letters[tolower(elem->name[len+2])-'a'] = '1';
                  }

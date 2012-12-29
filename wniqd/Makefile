@@ -6,7 +6,7 @@ wniqd.exe: wniqd.c
 	$(CC) -o wniqd.exe wniqd.c $(LDFLAGS) $(CFLAGS)
 
 clean:
-	rm *.exe *.obj
+	rm *.exe
 
 install-service: wniqd.exe
 	cygrunsrv --install wniqd --path "`pwd`/wniqd.exe"

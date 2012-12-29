@@ -15,3 +15,12 @@ Log as root with su or sudo -s and call:
 make install
 
 Thats all,
+
+Firewall and ninfod
+-------------------
+If you use ninfod and radvc on a SuSE distribution, you may have
+problems due to the very restrictive icmpv6 handling of the
+SuSEfirewall2. If so, you have to edit the file /sbin/SuSEfirewall2.
+You must edit the line stateless_icmpv6_types="... and insert the
+value 139 at the end of the assigned string (openSuSE 12.2).
+

@@ -2,11 +2,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
+#include <stdint.h>
+#ifdef __POCC__
+#define _NETIOAPI_H
+#endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <stdint.h>
 #include <iphlpapi.h>
-#include <ws2ipdef.h>
 
 // lcc don't know this
 #ifndef SIO_ROUTING_INTERFACE_QUERY
@@ -14,6 +17,9 @@
 #endif
 #ifndef IPPROTO_ICMPV6
 #define  IPPROTO_ICMPV6  58
+#endif
+#ifndef IPPROTO_IPV6
+#define  IPPROTO_IPV6 41
 #endif
 
 static int debug = 0;
@@ -112,7 +118,7 @@ struct ni_hdr {
 #define NI_IPV4ADDR_F_ALL       NI_IPV6ADDR_F_ALL
 
 
-#ifdef _WIN32
+#if defined _WIN32 && ! (defined __POCC__ && _WIN32_WINNT >= 0x600)
 const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
 {
     if (af == AF_INET)
@@ -135,7 +141,9 @@ const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
     }
     return NULL;
 }
+#endif
 
+#if defined _WIN32 
 int inet_pton(int af, const char *src, void *dst)
 {
     struct addrinfo hints, *res, *ressave;
@@ -229,8 +237,11 @@ int get_addresses( SOCKADDR_IN6 *ll, int family, unsigned char *buf, int size)
                         if ( family == AF_INET6 && pUnicast->Address.lpSockaddr->sa_family==family )
                         {
                             SOCKADDR_IN6 *sa6 = (SOCKADDR_IN6*)pUnicast->Address.lpSockaddr;
-                            memcpy(buf, &sa6->sin6_addr, 16);
-                            retVal = 16;
+			    if ( memcmp(&sa6->sin6_addr,"",1 ) )
+			    {
+                                memcpy(buf, &sa6->sin6_addr, 16);
+                                retVal = 16;
+                            }
                         }
                         else if ( family == AF_INET && pUnicast->Address.lpSockaddr->sa_family==family && retVal < 64 )
                         {
@@ -346,7 +357,10 @@ int __cdecl main(int argc, char **argv)
             printf("Send via %d done\n",sock);
             fflush(stdout);
         }
-
+#if 0 // don't work
+       DWORD val = RCVALL_ON;
+       WSAIoctl(sock, SIO_RCV_ALL, &val, sizeof(val), NULL, 0, 0, NULL, NULL);
+#endif
 #if 1
         /* allow us to receive multicast ICMPv6 frames which are not processed
          * by the kernel itself.

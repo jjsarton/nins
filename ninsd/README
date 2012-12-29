@@ -207,7 +207,7 @@ IPv6 only machines.
 If you use undound as name server you must modify the
 start parameters for ninsd within the file /etc/default/ninsd
 or /etc/sysconfig/ninsd.
-NINSD_IFACE='-i eth0 -s /usr/sbin/update-unbound.sh'
+NINSD_OPTIONS='-i eth0 -s /usr/sbin/update-unbound.sh'
 and then copy the file ninsd/utilities/update-unbound.sh
 to /usr/sbin
 

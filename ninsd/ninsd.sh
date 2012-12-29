@@ -21,7 +21,7 @@ then
     . /etc/sysconfig/ninsd
 fi
 
-if [ x"$NINSD_IFACE" = x ]
+if [ x"$NINSD_OPTIONS" = x ]
 then
    exit 1;
 fi
@@ -32,7 +32,7 @@ start()
     if [ x"$PROCS" = x ]
     then
         echo "start ninsd"
-        /usr/sbin/ninsd $NINSD_IFACE $NINSD_MAP
+        /usr/sbin/ninsd $NINSD_OPTIONS
     fi
 }
 
