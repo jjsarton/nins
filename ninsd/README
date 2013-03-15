@@ -111,7 +111,7 @@ first position.
 ---------------
 
 The file delivered by your distribution must
-be modified a little bin
+be modified a little bit
 
 On the bottom of the file /etc/named.conf
 you should add the folowing:

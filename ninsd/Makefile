@@ -6,7 +6,7 @@ CC=gcc
 CCOPT=-D_GNU_SOURCE -O2 -Wstrict-prototypes -Wall -g
 CFLAGS=$(CCOPT) $(GLIBCFIX) $(DEFINES) 
 
-OBJECTS = ninsd.o list.o storage.o decode_ra.o open_socket.o send.o
+OBJECTS = ninsd.o list.o storage.o decode_ra.o open_socket.o send.o nsupd_from.o
 
 all: ninsd update_hosts
 

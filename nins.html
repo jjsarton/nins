@@ -10,11 +10,15 @@
 			font-size:	0.9em;
 		}
 		#wrapper {
-			width: 40em;
+			width: 47em;
 			margin: auto;
 		}
 		.decimal {
 			list-style-type:decimal;
+		}
+		pre {
+			background-color: #ffffcc;
+			overflow: auto;
 		}
 	</style>
 </head>
@@ -127,7 +131,9 @@
 			server address is "::1" so that we will not have troubles
 			if an update come from global addresses. In order to
 			work ninsd require that the router advertisement daemon
-			radvd work also if the adress assignement is done by dbcp.
+			radvd work also if the adress assignement is done by dhcp.
+			If you have a subrouter you will also be able to update
+			the name server.
 		</p>
 		<h3>NetworkManager and /etc/resolv.conf</h3>
 		<p>
@@ -189,6 +195,216 @@
 				</li>
 			</ul>
 		</p>
+		<h2>Network example</h2>
+		<div style="width:28em;margin:auto;">
+			<img src="nins.png" alt="Network example" title="Network example" style="width:100%;">
+		</div>
+		<p>
+			The CPE provide Router adverstisement, the DHCP (IPv4) server is disabled.
+			The DHCPv6 Server may work, the priority is to be set to a level less as
+			the priority for the DHCPv6 Server on our own DNS system. I recommand to
+			use dnsmasq.
+		</p>
+		<p>
+			The PC with subnet act as router and use a dhcp forwarder (from the
+			same author as dnsmasq. The client for the PC with subnet will get
+			there IPv6 Adress via SLAAC or DHCPv6 according to the configuration
+			of dnsmasq, the local radvd process and the ability of the client.
+		</p>
+		<p>
+			IPv4 Systeme within the subnet get the IPv4 Adresse via DHCP from the
+			main DNS/DHCP server and possibly also there IPv6 Address.
+		</p>
+		<p>
+			The ninsd daemon on the subnet server send the update data via
+			a script which use nc, ncat or netcat. The ninsd saemon on the
+			dns sever get these informations and update the name server.
+		</p>
+		<h2>Configuration for our example network: Name server</h2>
+		<p>
+			The name server is a rasperrypi which has a low power
+			consumption and enough has enough performance for our
+			tasks. 
+		</p>
+		<h3>/etc/hosts</h3>
+		<pre>
+127.0.0.1 localhost
+::1	      localhost ip6-localhost ip6-loopback
+fe00::0   ip6-localnet
+ff00::0   ip6-mcastprefix
+ff02::1	  ip6-allnodes
+ff02::2	  ip6-allrouters
+# our adds
+192.168.178.2 ns.my-home-is-my.castel ns
+2001:DB8:CAFE:1::2 ns.my-home-is-my.castel ns
+192.168.178.3 sub.my-home-is-my.castel sub
+2001:DB8:CAFE:1::3 sub.my-home-is-my.castel sub
+</pre>
+		<p>
+			The lines below "# our adds" are for the ip addresses for
+		    the nameserver (ns) itself and for the PC which act as
+		    router for our subnet.
+		</p>
+		<h3>/etc/dnsmasq.conf</h3>
+		<pre>
+listen-address=192.168.178.2
+listen-address=2001:DB8:CAFE:1::2
+server=192.168.178.1
+expand-hosts
+no-resolv
+dhcp-authoritative
+domain=my-home-is-my.castel
+dhcp-range=192.168.178.20,192.168.178.200,1h
+dhcp-range=set:teen,10.1.1.10,10.1.1.254,proxy,255.255.255.0,10.1.1.255,1h
+dhcp-range=2001:DB8:CAFE:1::A,2001:DB8:CAFE:1::ff,1h
+dhcp-leasefile=/var/run/dnsmasq/dnsmasq.lease
+pid-file=/var/run/dnsmasq/dnsmasq.pid
+addn-hosts=/var/run/dnsmasq/hosts
+dhcp-option=option:router,192.168.178.1
+dhcp-option=tag:teen,option:router,10.1.1.1
+</pre>
+	<h3>/etc/default/ninsd</h3>
+	<pre>
+NINSD_OPTIONS='-i eth0 -s /usr/sbin/update_dnsmasq.sh -P 530'
+</pre>
+	<h3>/usr/sbin/update_dnsmasq.sh</h3>
+	<pre>
+#!/bin/sh
+update_hosts -f /var/run/dnsmasq/hosts
+pkill -SIGHUP dnsmasq
+</pre>
+	<h3>Configuration for the "subnet" PC</h3>
+	<p>
+		The System for our subnet has static addresses but the
+		subnet is created by calculating all addresse within
+		a script which provide configurations file and start
+		the required processes.  
+	</p>
+	<pre>
+#!/bin/sh
+
+ExtIf=wlan0
+IF=eth0
+Domain=my-home-is-my.castel
+
+IPv4=10.1.1.1
+IPv4Ro=10.1.1
+
+if [ $# -eq 2 ]
+then
+   IF=$1
+   shift;
+fi
+
+# Get IPv4 address on the external if
+ExtIp=`ip a s dev $ExtIf | sed -n 's/.*inet \(.*\)\/.*/\1/p'`
+
+
+start()
+{
+    # Get IPv6 subnet
+    dibbler-client start
+    sleep 1
+    IPv6Ro=`sed -n 's/.*&lt;prefix.*&gt;\(.*\)&lt;\/prefix&gt;/\1/p' /var/lib/dibbler/client-CfgMgr.xml`
+    IPv6=${IPv6Ro}1
+    IPv6NS=`echo $IPv6Ro | awk -F':' '{ printf "%s:%s:%s:1::2", $1, $2, $3 }'`
+
+    # Get IPv4 address on the external if
+    ExtIp=`ip a s dev $ExtIf | sed -n 's/.*inet \(.*\)\/.*/\1/p'`
+
+    sysctl net.ipv4.conf.all.forwarding=1
+    sysctl net.ipv6.conf.all.forwarding=1
+    sysctl net.ipv6.conf.all.proxy_ndp=1
+    sysctl net.ipv6.conf.default.forwarding=1
+    sysctl net.ipv6.conf.default.proxy_ndp=1
+    sysctl net.ipv6.conf.wlan0.forwarding=1
+    sysctl net.ipv6.conf.wlan0.proxy_ndp=1
+    ip a a $IPv4/24 dev $IF
+    ip a a $IPv6/64 dev p4p1
+    ip r a $IPv6Ro/64 via $IPv6 dev p4p1
+    iptables -t nat -A POSTROUTING -s $IPv4Ro/24 -o $ExtIf -j SNAT --to $ExtIp
+ 
+    cat &gt; /tmp/radvd-$IF.conf &lt;&lt;!
+interface $IF {
+    IgnoreIfMissing on;
+    AdvSendAdvert on;
+    AdvManagedFlag on;
+    AdvOtherConfigFlag on;
+    #MinRtrAdvInterval 30;
+    #MaxRtrAdvInterval 60;
+    prefix $IPv6Ro/64
+    {
+           AdvOnLink on;
+           AdvAutonomous on;
+           AdvRouterAddr on;
+    };
+    # Recursive DNS server
+    RDNSS  $IPv6NS { };
+    # DNS Search List
+    DNSSL $Domain { };
+};
+!
+    chmod 640 /tmp/radvd-$IF.conf
+    chown root:radvd /tmp/radvd-$IF.conf
+    nsIP=`echo ExtIp | awk -F'.' '{ printf "%s.%s.%s.2",$1,$2,$3 }'`
+  
+    radvd -C /tmp/radvd-$IF.conf -u radvd -p /tmp/radvd-$IF.pid
+    dhcp-helper -s $nsIP -i p4p1 -b wlan0 -e wlan0 -r /tmp/dhcp-helper-p4p1.pid
+    ninsd -i $IF -p /tmp/ninsd-$IF.pid \
+          -s /usr/local/bin/dnsmasqupdc.sh -T 255 -D net.fritz.box -P 530
+    npd6
+}
+
+stop_process() {
+    for p in radvd dhcp-helper ninsd
+    do
+        kill `cat /tmp/$p-$IF.pid`
+        rm -f /tmp/$p-$IF.pid
+    done
+    pkill npd6
+    pkill dibbler-client
+}
+
+stop()
+{
+   stop_process $IF
+   IPv6Ro=`sed -n 's/.*&lt;prefix.*&gt;\(.*\)&lt;\/prefix&gt;/\1/p' /var/lib/dibbler/client-CfgMgr.xml`
+   IPv6=${IPv6Ro}1
+   ip r d $IPv6Ro/64 via $IPv6 dev $IF
+   ip a d $IPv6/64 dev $IF
+
+   iptables -t nat -D POSTROUTING -s $IPv4Ro/24 -o $ExtIf -j SNAT --to $ExtIp
+   ip a d $IPv4/24 dev $IF
+}
+
+case $1 in
+start) start;;
+stop) stop;;
+esac
+</pre>
+    <p>
+		My CPE allow subnet only if there are delegated via the build-in
+		DHCPv6 server. In order to get the subnet we use dibbler-client which
+		work better as the standard dhcp client but don't allow to declare
+		a configurations file. 
+	</p>
+	<p>
+		All IP Adresses are calculated from the script.
+	</p>
+	<h2>/etc/dibbler/client.conf</h2>
+	<pre>
+log-mode short
+log-level 8
+downlink-prefix-ifaces eth0
+strict-rfc-no-routing
+iface wlan0 {
+	pd
+}
+</pre>
+   <p>
+	   Dibbler don't allow to define alternate configurations file
+	   so the data are eventually to be adapted to your needs,
+   </p>
 	</div>
 </body>
 

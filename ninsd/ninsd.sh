@@ -28,7 +28,7 @@ fi
 
 start()
 {
-    PROCS=`pgrep minsd`
+    PROCS=`pgrep ninsd`
     if [ x"$PROCS" = x ]
     then
         echo "start ninsd"

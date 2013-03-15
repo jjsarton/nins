@@ -416,6 +416,7 @@ static void call_nsupdate(node_info_t *info, int ttl, char *domain, char *update
                 syslog(LOG_INFO,"update add %s %d A %s\n", info->name, ttl, str);
             }
         }
+        
         fprintf(p,"server ::1\n");
         fprintf(p,"update delete %s AAAA\n", info->name);
         if ( info->flag&NODE_HAS_IPV4 )

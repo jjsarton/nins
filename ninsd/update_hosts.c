@@ -1,6 +1,7 @@
 /* file update_hosts.c
  * Insert/delete entry from ninsd int the file
- * /etc/host
+ * /etc/host ort the given host file
+ * Added IPv4 handling on march 2013 11
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -104,8 +105,11 @@ static read_command()
     char name[LINE_SIZE];
     char IP[LINE_SIZE];
     char dummy[LINE_SIZE];
+    char type[LINE_SIZE];
     list_t *elem;
     hosts_line_t *entry;
+    int found6 = 0;
+    int found4 = 0;
     while ( fgets(buf,sizeof(buf), stdin) )
     {
        int e = strlen(buf);
@@ -114,25 +118,33 @@ static read_command()
        if ( strstr(buf, "update delete") )
        {
           /* 3. arg is the node and 4. the entry type */
-          sscanf(buf, "%s %s %s %s", dummy, dummy, name, dummy);
-          if ( (elem = list_search(root,name, cmp_name)) )
+          sscanf(buf, "%s %s %s %s", dummy, dummy, name, type);
+          elem = root;
+          while ( (elem = list_search(elem, name, cmp_name)) )
           {
              entry = (hosts_line_t *)elem->data;
-             if ( strchr(entry->line, ':') )
+             if ( strchr(entry->line, ':') && strcmp(type,"AAAA") == 0 )
              {
                  /* an IPv6 entry */
                  entry->status = DELETE;
              }
+             else if ( !strchr(entry->line, ':') && strcmp(type,"A") )
+             {
+                 /* an IPv4 entry */
+                 entry->status = DELETE;
+             }
+             elem = elem->next;
           }
        }
        else if ( strstr(buf, "update add") )
        {
           /* 3. name 5. ttl 6, type, 7. IP */
           sscanf(buf, "%s %s %s %s %s %s", dummy, dummy, name, dummy, dummy, IP);
-          if ( (elem = list_search(root,name, cmp_name)) )
+          elem = root;
+          while ( (elem = list_search(elem,name, cmp_name)) )
           {
              entry = (hosts_line_t *)elem->data;
-             if ( strchr(entry->line, ':') )
+             if ( strchr(entry->line, ':') && strchr(IP,':') )
              {
                  /* an IPv6 entry */
                  if ( entry->status == DELETE )
@@ -149,11 +161,35 @@ static read_command()
                          }
                      }
                  }
-                 /* replace the IP addr may ne changed */
+                 /* replace the IP addr may be changed */
                  snprintf(entry->line,LINE_SIZE,"%s %s",IP,name);
+                 found6 = 1;
              }
+             else if ( strchr(entry->line, ':') == NULL &&  strchr(IP,':') == NULL)
+             {
+                 /* an IPv6 entry */
+                 if ( entry->status == DELETE )
+                 {
+                     entry->status = UPDATE;
+                     char *p, *q;
+                     if ( (p = strstr(entry->line, IP)) )
+                     {
+                         if ( p == entry->line )
+                         {
+                             q = p + strlen(IP);
+                             if ( isspace(*q) )
+                                 entry->status = PRESERVE;
+                         }
+                     }
+                 }
+                 /* replace the IP addr may be changed */
+                 snprintf(entry->line,LINE_SIZE,"%s %s",IP,name);
+                 found4 = 1;
+             }
+             elem = elem->next;
           }
-          else
+
+          if ( (!found6 && strstr(IP,":")) || (!found4 && !strstr(IP,":")) )
           {
              /* unknown; add element */
              if ( (entry = calloc(1, sizeof(hosts_line_t))) )

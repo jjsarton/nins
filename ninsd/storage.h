@@ -13,7 +13,8 @@ extern "C" {
 #define NODE_QUERY_MAP  0x10
 
 #define NAME_SIZE_MAX 255
-
+extern char server[NAME_SIZE_MAX];
+ 
 typedef struct node_info_s {
     int             flag;
     time_t          last_seen;

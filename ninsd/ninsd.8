@@ -16,7 +16,7 @@
 ninsd \- allow DDNS update of a name server as named.
 .SH SYNOPSIS
 .B ninsd
-.B "[ \-f ] [ \-v ] [ \-t ttl_max ] [ \-i interface] [ \-s updater] [ \-4 \| -m map_file ] [ \-p pid_file ]"
+.B "[ \-f ] [ \-v ] [ \-t ttl_max ] [ \-i interface] [ \-s updater] [ \-4 \| \-m map_file ] [ \-p pid_file ] [\-g group] [\-u user] [\-p ] [\-w] [\-D domain] [\-T ttl]"
 
 .SH DESCRIPTION
 .B ninsd
@@ -141,6 +141,27 @@ use update method need some rights not provided by the group
 .B ninsd
 will wait for the creation of the given device. This may be
 usefull if the interface is a virtual device as a tap.
+
+.TP
+.BR "[\-D domain]"
+If the router advertisement messages don't announce the search list
+or a wrong search list you can tell with this option the domain to be
+served.
+
+.TP
+.BR "[\-T ttl]"
+This option allow to set the time to live, this may be ncessary on
+some cases.
+
+.TP
+.BR "[-P port-number]"
+.BR ninsd
+can listen on the given port number for message issued from a slave
+.B ninsd
+process. This allow to update a DHCP/DHCPv6/DNS server as
+.B dnsmasq with DNS data from a subnet. If this option is not set
+.B ninsd
+will not listen for such messages.
 
 .SH FILES
 

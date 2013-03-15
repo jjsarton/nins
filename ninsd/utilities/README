@@ -4,8 +4,5 @@ configuration of the name server, radvd and tayga
 Furthermore this script allow you to start or stop the
 local network configurations processes.
 
-The scripts awk_update.sh and update-unbound.sh are
-example for updating dnsnasq eg. unbound.
-
 nins_update.sh is a wrapper script which can be called
 from ninsd in order to do the update job.

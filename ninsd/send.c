@@ -93,7 +93,7 @@ static int build_niquery(uint8_t *buf, struct in6_addr *addr,  int ni_query_code
     switch(ni_query_code)
     {
         case NI_QTYPE_IPV6ADDR:
-            nih->ni_flags = NI_IPV6ADDR_F_GLOBAL;
+            nih->ni_flags = NI_IPV6ADDR_F_GLOBAL;//|NI_IPV6ADDR_F_ALL;
         break;
         case NI_QTYPE_IPV4ADDR:
             nih->ni_flags = 0;

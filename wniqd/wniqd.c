@@ -237,8 +237,8 @@ int get_addresses( SOCKADDR_IN6 *ll, int family, unsigned char *buf, int size)
                         if ( family == AF_INET6 && pUnicast->Address.lpSockaddr->sa_family==family )
                         {
                             SOCKADDR_IN6 *sa6 = (SOCKADDR_IN6*)pUnicast->Address.lpSockaddr;
-			    if ( memcmp(&sa6->sin6_addr,"",1 ) )
-			    {
+                            if ( memcmp(&sa6->sin6_addr,"",1 ) )
+                            {
                                 memcpy(buf, &sa6->sin6_addr, 16);
                                 retVal = 16;
                             }
@@ -409,7 +409,7 @@ int __cdecl main(int argc, char **argv)
                            size = 0;
                            if (get_routing_address(sock, &src, &via,&size) == 0 )
                            {
-                               printf("Recedived via: %s\n", (char*)sub);
+                               printf("Received via: %s\n", (char*)sub);
                                memcpy(dest, &via.sin6_addr, 16);
                            }
                            else

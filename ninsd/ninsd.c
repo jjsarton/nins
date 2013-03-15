@@ -32,6 +32,8 @@
 #include "ninfo.h"
 #include "open_socket.h"
 #include "send.h"
+#include "read_conf.h"
+#include "nsupd_from.h"
 
 #include "version.h"
 
@@ -369,7 +371,7 @@ int parse_reply(struct msghdr *msg, int cc, void *addr, int *echo)
             break;
         case ND_NEIGHBOR_SOLICIT:
             syslog(LOG_INFO, "got ND_NEIGHBOR_SOLICIT from %s\n", print_addr(&from->sin6_addr));
-            break;	
+            break;
         default:
             syslog(LOG_INFO, "Received type %d from %s\n",icmph->icmp6_type, print_addr(&from->sin6_addr));
         break;
@@ -427,9 +429,9 @@ void complete_info(int sock, uint8_t *outpack,int ttl)
     }
 }
 
-int mainloop(int sock, uint8_t *outpack, int packlen)
+int mainloop(int sock, uint8_t *outpack, int packlen, int listener)
 {
-    struct pollfd pollfd;
+    struct pollfd pollfd[2];
     char addrbuf[INET6_ADDRSTRLEN];
     char ans_data[4096];
     struct iovec iov;
@@ -441,18 +443,33 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
     int pollret=0;
     time_t req_time = 0;
 
-    pollfd.fd = sock;
-    pollfd.events = POLLIN|POLLPRI|POLLRDHUP|POLLERR|POLLHUP|POLLNVAL;
-    pollfd.revents = 0;
+    pollfd[0].fd = sock;
+    pollfd[0].events = POLLIN|POLLPRI|POLLRDHUP|POLLERR|POLLHUP|POLLNVAL;
+    pollfd[0].revents = 0;
+    
+    if ( listener > 0 )
+    {
+        pollfd[1].fd = listener;
+        pollfd[1].events = POLLIN|POLLPRI|POLLRDHUP|POLLERR|POLLHUP|POLLNVAL;
+        pollfd[1].revents = 0;
+    }
 
     /* make shure that radvd send a router advertisement */
     send_ra_solicit(sock, outpack);
 
     for(;;)
     {
-        pollret = poll(&pollfd, 1, 1000);
+        pollfd[0].revents = 0;
+        pollfd[1].revents = 0;
+        pollret = poll(pollfd, listener > 0 ? 2 : 1, 1000);
 
-        if ( (pollfd.revents & POLLIN) == POLLIN )
+        if ( listener > 0 && (pollfd[1].revents & POLLIN) == POLLIN )
+        {
+            syslog(LOG_ERR,"Received Update query");
+            update_from(listener,updater);
+        }
+
+        if ( (pollfd[0].revents & POLLIN) == POLLIN )
         {
             iov.iov_len = packlen;
             iov.iov_base = ans_data;
@@ -505,6 +522,7 @@ int mainloop(int sock, uint8_t *outpack, int packlen)
                req_time = time(NULL) + 15;
             }
         }
+
     }
     return 0;
 }
@@ -514,8 +532,9 @@ char *prgName = NULL;
 
 static void usage(char *me)
 {
-    fprintf(stderr,"Usage %s -i interface [-v] [-f] [-t ttl_max] [-s updater] [-4] [-m map_file] -g group -u user\n",me);
-    abort();
+    fprintf(stderr,"Usage %s -i interface [-v] [-f] [-t ttl_max] [-d]\n",me);
+    fprintf(stderr,"\t[-s updater] [-4] [-m map_file] [-g group] [-u user]\n");
+    fprintf(stderr,"\t[-p ] [-w] [-D domain] [-T ttl] [-P port-number]\n");
 }
 
 int main(int argc, char **argv)
@@ -528,13 +547,15 @@ int main(int argc, char **argv)
     pid_t pid;
     int debug = 0;
     int wait_for_if = 0;
+    int port = 0;
+    int listener = -1;
 
     if ( (prgName=strrchr(argv[0],'/')) )
         prgName++;
     else
         prgName = argv[0];
  
-    while( (c = getopt(argc, argv, "i:vft:s:m:4p:du:g:w")) > 0)
+    while( (c = getopt(argc, argv, "i:vft:s:m:4p:du:g:wD:T:P:")) > 0)
     {
         switch(c)
         {
@@ -578,8 +599,18 @@ int main(int argc, char **argv)
             case 'w':
                 wait_for_if=1;
             break;
+            case 'D':
+                strcpy(domain, optarg);
+            break;
+            case 'T':
+                ttl = atoi(optarg);
+            break;
+            case 'P':
+                port = atoi(optarg);
+            break;
             default:
                 usage(prgName);
+                exit(1);
             break;
         }
     }
@@ -589,7 +620,8 @@ int main(int argc, char **argv)
         usage(prgName);
     }
 
-    umask(07);
+    umask(0);
+
     /* set logging */
     int opt = LOG_PID|LOG_CONS;
     if ( foreground||debug )
@@ -668,6 +700,11 @@ int main(int argc, char **argv)
     
     syslog(LOG_NOTICE,"started");
 
+    if ( port > 0 )
+    {
+       listener = open_listener(port);
+    }
+
     /* if we have a virtual interface, we may wait fot it */
     do
     {
@@ -683,7 +720,7 @@ int main(int argc, char **argv)
         set_ownership(user,group);
         syslog(LOG_NOTICE,"enter main loop");
 
-        mainloop(sock, outpack, packlen);
+        mainloop(sock, outpack, packlen, listener);
     }
     while ( wait_for_if );
 

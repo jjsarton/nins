@@ -11,4 +11,4 @@ extern int decode_router_advertisement(struct icmp6_hdr *icmph, int len, struct 
 }
 #endif
 
-#endif /* LIST_H */
+#endif /* DECODE_RA_H */

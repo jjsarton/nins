@@ -11,7 +11,7 @@
 UPDATER=named
 
 #UPDATER=dnsmasq
-#ADDN_FILE=/var/db/dnsmask/dynamic_hosts
+#ADDN_FILE=/var/run/dnsmask/hosts
 
 
 case $UPDATER in
@@ -24,7 +24,7 @@ unbound)
     update-unbound.sh
     pkill -SIGHUP dnsmasq
 dnsmasq)
-    awk_update.sh $ADDN_FILE
+    update_hosts $ADDN_FILE
     pkill -SIGHUP dnsmasq
     ;;
 esac
