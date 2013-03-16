@@ -32,7 +32,6 @@
 #include "ninfo.h"
 #include "open_socket.h"
 #include "send.h"
-#include "read_conf.h"
 #include "nsupd_from.h"
 
 #include "version.h"
