@@ -6,3 +6,34 @@ local network configurations processes.
 
 nins_update.sh is a wrapper script which can be called
 from ninsd in order to do the update job.
+
+getprefix is a little utility which send a router sollicitaion
+on the given link, wait for the router advertisement and
+finally print out the prefix for the subnet attached to
+the link. With this value you may configure your system
+with a static address while appending the prefix with
+the interface ID eg 2 so that if the returned prefix
+is 2001:db8:caffe:: the system can set the IPv5 address
+to 2001:db8:caffe::2. gerprefix must be run as user root.
+Please note that the network interface must be up. On
+error getprefix  return 1 else 0.
+
+In order to compile getprefix, simply call make getprefix.
+For installtion of getprefix, copy the binary to a
+directory as /usr/sbin or /usr/local/sbin.
+
+calcsubnet is an other little utility which allows to
+print out a new prefix based on a delegated prefix
+by adding an offset. If for example the CPE delegate
+to you the / 62 subnet 2001:db8:dead:befc, calcsubnet
+"-p 2001:db8:dead:befc:: -o 1" will return
+2001:db8:dead:befd::.
+You may also build an address if you add to the previous
+call the id for the link eg "-i 3". In this case the result
+will be 2001:db8:dead:befd::3. If the offset is not provided,
+the result will be 2001:db8:dead:befc::3
+
+In order to compile calcsubnet, simply call make getprefix.
+For installtion of calcsubnet, copy the binary to a
+directory as /usr/sbin or /usr/local/sbin.
+
