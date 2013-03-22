@@ -1,0 +1,47 @@
+.\"
+.\"
+.\"   Authors:
+.\"    Jean-Jacques Sarton		<jj.sarton@t-onlime.de>	 
+.\"
+.\"   This software is Copyright 1996 by the above mentioned author(s), 
+.\"   All Rights Reserved.
+.\"
+.\"   The license which is distributed with this software in the file COPYRIGHT
+.\"   applies to this software.
+.\"
+.\"
+.\"
+.TH getsuffix 1 "19 Mar 2013" "v0.1" ""
+
+.SH NAME
+getprefix \- print out the IPv6 prefix for a link.
+
+.SH SYNOPSIS
+.B calcsubnet
+\-i <interface>
+
+.SH DESCRIPTION
+.B getprefix
+send a router solicitation, wait up to the receipt
+of the router advertisement message and print out
+the prefix for the subnet. This little utility shall
+be helpfull id the IPv6 address is not static and
+you want to dynamically set up IPv6 addresses and or
+routes
+
+.SH OPTIONS
+.BR "\-i <interface>"
+Interface may be for example eth0, tun0 and so on.
+This option is mandatory.
+
+The output look like 2001:db8:dead:beef::
+
+.SH REMARKS
+.B getprefix
+must be run with root rights.
+
+.SH AUTHORS
+
+.nf
+Jean-Jacques Sarton <jj.sarton@t-online.de>
+.fi

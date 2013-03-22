@@ -28,7 +28,7 @@ start()
 {
    # get interface name
    iface=`grep -i interface /etc/tinc/$1/tinc.conf| tr '=' ' '`
-   if [ ! -n $iface ]
+   if [ ! -n "$iface" ]
    then
       iface=$1
    else

@@ -1,0 +1,83 @@
+.\"
+.\"
+.\"   Authors:
+.\"    Jean-Jacques Sarton		<jj.sarton@t-onlime.de>	 
+.\"
+.\"   This software is Copyright 1996 by the above mentioned author(s), 
+.\"   All Rights Reserved.
+.\"
+.\"   The license which is distributed with this software in the file COPYRIGHT
+.\"   applies to this software.
+.\"
+.\"
+.\"
+.TH calcsubnet 1 "19 Mar 2013" "v0.1" ""
+.SH NAME
+calcsubnet \- allow is a little utilty for IPv6 subnet calculation.
+.SH SYNOPSIS
+.B calcsubnet
+\-p <base-prefix> [\-o <offset> | \-i <id>]
+
+.SH DESCRIPTION
+.B calcsubnet
+will allows you to calculate the prefix for an IPv6 subnet
+
+.SH OPTIONS
+ 
+.TP
+.BR "\-p <prefix>"
+For this mode you may enter a base prefix as 2001:db8:dead:ab00:: and
+and an offset which will be added to the base prefix. If the offfset
+is 
+.B calcsubnet
+will return 2001:db8:dead:ab01::
+
+If the prefix is appended with for example /48 the result for
+2001:db8:dead:ab00:: will be 2001:db8:dead::/48. For this case
+other options are not processed
+
+.TP
+.BR "\-o offset"
+If this option is given, the new subnet will be calculated as
+stated above. If for example the base prefix is 2001:db8:dead:abfc::
+and you have a /62 subnet you can calculate the 4 prefix for the
+subnets:
+.PD 0
+.P
+.IP
+\-p 2001:db8:dead:abfc:: \-o 0 \-> 2001:db8:dead:abfc::
+.P
+.IP
+\-p 2001:db8:dead:abfc:: \-o 1 \-> 2001:db8:dead:abfd::
+.P
+.IP
+\-p 2001:db8:dead:abfc:: \-o 2 \-> 2001:db8:dead:abfe::
+.P
+.IP
+\-p 2001:db8:dead:abfc:: \-o 3 \-> 2001:db8:dead:abff::
+.PD
+
+.TP
+.BR "\-i <id>"
+With this option the <id> for the interface will be added to
+the prefix so that you will be able to return the an IPv6
+Address.
+.PD 0
+.P
+.IP
+\-p 2001:db8:dead:abfc:: \-o 2 \-i 1:0:0:4
+.P
+.IP
+will return 2001:db8:dead:abfce:1::4
+.PD
+
+.SH REMARKS
+.B calcnet
+consider that the subnet are allways /64 subnets for the
+modes without adding /# to the prefix.
+
+.SH AUTHORS
+
+.nf
+Jean-Jacques Sarton <jj.sarton@t-online.de>
+.fi

@@ -3,22 +3,29 @@
 
 # Set the following according to you needs
 MN_IF=eth0                 # the main interface to the LAN
-VPN_SUBNET_NR=3            # the subnet forseen for VPN
-VPN_SERVER_SUFFIX=1        # The adresse of the VPN tap is the <prefix>::$VPN_SERVER_SUFFIX
+MN_ID=2                    # The id part for our main IPv6 Adsresse
+LAN_MASK=56
 SEARCH_LIST=localnet       # The domain name for your LAN
 
-# calc dynamic value
-server_ip=`ip -6 ro sh dev $MN_IF | grep '::/64 via' | awk '{ print $3 }'`
-vpn_subnet=`ip -6 ro sh dev $MN_IF | grep '::/64 via' | sed 's/:[0-9a-fA-F][0-9a-fA-F]*::.*/:'$VPN_SUBNET_NR'::\/64/'`
-vpn_server_ip=`echo $vpn_subnet | sed "s@/64@$VPN_SERVER_SUFFIX@"`
+SUBNET=`sed -n 's/.*<prefix.*>\(.*\)<\/prefix>/\1/p' /var/lib/dibbler/client-CfgMgr.xml`
+
+VPN_SUBNET_NR=2            # the subnet forseen for VPN
+VPN_SERVER_ID=1            # The adresse of the VPN tap is the <prefix>::$VPN_SERVER_ID
+
+PREFIX=`getprefix -i $MN_IF`
+
+server_ip=$PREFIX$MN_ID
+vpn_subnet=$SUBNET/64
+vpn_server_ip=$SUBNET$VPN_SERVER_ID
+lan_prefix=`calcsubnet -p $SUBNET/$LAN_MASK`
 
 ip link set dev $INTERFACE up 
 ip link set mtu 1280 dev $INTERFACE
 
-ip ad ad $vpn_server_ip/54 dev $INTERFACE
+ip ad ad $vpn_server_ip/56 dev $INTERFACE
 ip ro ad $vpn_subnet via $vpn_server_ip dev $INTERFACE
 
-function startRadvd()
+startRadvd()
 {
    cat >/tmp/radvd.conf <<!
 interface $INTERFACE
@@ -40,7 +47,21 @@ interface $INTERFACE
     sleep 1
     radvd -p /tmp/radvd.pid -C /tmp/radvd.conf -u radvd
     sleep 1
-    ninsd -i $INTERFACE -p /tmp/ninsd.pid
+
+   cat >/etc/npd6.conf <<!
+prefix=$lan_prefix
+interface = $MN_IF
+prefix=$lan_prefix
+interface = $INTERFACE
+listtype = none
+listlogging = off
+!
+    pkill npd6
+    sleep 1
+    npd6
+    # adapt the following according your needs
+    ninsd -i $INTERFACE -p /tmp/ninsd.pid -s "update_dnsmasq.sh"
+    
 }
 
 startRadvd $vpn_subnet &

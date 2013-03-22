@@ -22,6 +22,34 @@ static void usage(char *me)
     fprintf(stderr,"Syntax: %s -p <base-prefix> [-o <offset> | -i <id>]\n",me);
 }
 
+static void mask_addr(struct in6_addr *addr, int bits)
+{
+    int sz = 128;
+    unsigned char *b = (unsigned char*)addr;
+    while (bits>0)
+    {
+       switch ( bits)
+       {
+           case 1: *b &= 0x80; break;
+           case 2: *b &= 0xc0; break;
+           case 3: *b &= 0xe0; break;
+           case 4: *b &= 0xf0; break;
+           case 5: *b &= 0xf8; break;
+           case 6: *b &= 0xfc; break;
+           case 7: *b &= 0xfe; break;
+       }
+       b++;
+       bits -=8;
+       sz   -= 8;
+   }
+   while (sz)
+   {
+       *b = 0;
+       b++;
+       sz -= 8;
+   }
+}
+
 int main(int argc, char **argv)
 {
     char str[INET6_ADDRSTRLEN];
@@ -33,6 +61,8 @@ int main(int argc, char **argv)
     struct  in6_addr suffix;
     char *prefix = NULL;
     char *id = NULL;
+    int   mb = 64;
+    char *s = NULL;
 
     if ( (prgName=strrchr(argv[0],'/')) )
         prgName++;
@@ -47,7 +77,7 @@ int main(int argc, char **argv)
                 id = optarg;
             break;
             case 'p':
-                prefix = optarg;
+                prefix = strdup(optarg);
             break;
             case 'o':
                 offset = atoi(optarg);
@@ -72,6 +102,26 @@ int main(int argc, char **argv)
         }
         str[INET6_ADDRSTRLEN-1] = '\0';
         inet_pton(AF_INET6, str, &suffix);
+    }
+
+
+    if ( prefix && (s=strchr(prefix,'/')) )
+    {
+        mb = atoi(s+1);
+        *s = '\0';
+        if ( mb > 64 )
+        {
+            fprintf(stderr,"%s: subnet > 64 not supported\n",prgName);
+            return 1;
+        }
+        else
+        {
+            inet_pton(AF_INET6, prefix,&addr);
+            mask_addr(&addr, mb);
+            inet_ntop(AF_INET6, &addr, str, sizeof(str));
+            printf("%s/%d\n",str,mb);
+            return 0;
+        }
     }
 
     if ( prefix && strstr(prefix, "::") && !strchr(prefix,'/') )

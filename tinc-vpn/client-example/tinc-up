@@ -1,7 +1,10 @@
 #!/bin/sh
 # File tinc-up
+# set the netmask according to your IPv6 LAN 48, 56 or 60
+NETMASK=56
+
 ip link set dev $INTERFACE up
 ip link set mtu 1280 dev $INTERFACE
 radvc -d /etc/tinc/$NETNAME/$INTERFACE -p /etc/tinc/$NETNAME/radvc.pid
-set_route -i $INTERFACE &
+set_route -i $INTERFACE -n $NETMASK &
 echo $! > /etc/tinc/$NETNAME/$INTERFACE -p /etc/tinc/$NETNAME/set_route.pid
